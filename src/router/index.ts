@@ -57,6 +57,11 @@ const routes: RouteRecordRaw[] = [
     name: "panorama",
     component: () => import("@/components/Panorama.vue"),
   },
+  {
+    path: "/22",
+    name: "points",
+    component: () => import("@/components/Points.vue"),
+  },
 ];
 
 const router = createRouter({
