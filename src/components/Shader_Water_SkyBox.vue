@@ -15,7 +15,9 @@ import { onMounted, ref } from 'vue'
 
 /** 外部依赖 **/
 import * as THREE from 'three'
-import { FirstPersonControls } from 'three/examples/jsm/controls/FirstPersonControls'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+import { Water } from 'three/examples/jsm/objects/Water'
+import { Sky } from 'three/examples/jsm/objects/Sky'
 
 /** API **/
 
@@ -29,10 +31,12 @@ let scene: THREE.Scene | null = null
 let light: THREE.HemisphereLight
 let directionLight: THREE.DirectionalLight
 let axesHelper: THREE.AxesHelper;
-let controls: FirstPersonControls;
+let controls: OrbitControls;
 let clock: THREE.Clock
 
-let geometry: THREE.PlaneGeometry
+let water: Water
+let sky: Sky
+const sunPosition: THREE.Vector3 = new THREE.Vector3(100, 2, 0)
 
 
 const canvas = ref()
@@ -49,7 +53,6 @@ onMounted((): void => {
   initCamera()
   initScene()
   initAxesHelper()
-  // initLight()
   initControls()
   initClock()
   initMesh()
@@ -74,7 +77,6 @@ const initRenderer = (): void => {
 
 const initCamera = (): void => {
   camera = new THREE.PerspectiveCamera(60, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 2000)
-  camera.position.y = 200;
 }
 
 const initScene = (): void => {
@@ -90,27 +92,12 @@ const initAxesHelper = (): void => {
   }
 }
 
-const initLight = (): void => {
-  light = new THREE.HemisphereLight() // 不传参数，就是白色光
-  light.intensity = 0.4 // 强度
-  light.position.set(0, 1, 0)
-
-  // 方向光，平行光，模拟太阳光
-  directionLight = new THREE.DirectionalLight()
-  directionLight.position.set(5, 5, 5)
-  directionLight.intensity = 0.8
-
-  if (scene) {
-    scene.add(light)
-    scene.add(directionLight)
-  }
-}
-
 const initControls = (): void => {
   if (camera) {
-    controls = new FirstPersonControls(camera, canvas.value)
-    controls.movementSpeed = 500
-    controls.lookSpeed = 0.1
+    controls = new OrbitControls(camera, canvas.value)
+    controls.target.set(0, 0, 0)
+    controls.maxDistance = 5000
+    controls.minDistance = 10
   }
 }
 
@@ -119,20 +106,15 @@ const initClock = (): void => {
 }
 
 const initMesh = (): void => {
-  geometry = new THREE.PlaneGeometry(20000, 20000,  200, 200);
-  geometry.rotateX(- Math.PI / 2);
-  // const position: any = geometry.attributes.position
-  // position.usage = THREE.DynamicDrawUsage;
-  // for (let i = 0; i < position.count; i++) {
-  //   const y = 35 * Math.sin(i / 2);
-  //   position.setY(i, y);
-  // }
-  const texture = new THREE.TextureLoader().load('/textures/water/water.jpg');
-  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(5, 5);
-  const material = new THREE.MeshBasicMaterial({ color: 0x0044ff, map: texture });
-  const mesh = new THREE.Mesh(geometry, material);
-  scene?.add(mesh);
+  // new Water(geometry: THREE.BufferGeometry, options: WaterOptions): Water
+  water = new Water(
+    new THREE.PlaneGeometry(10000, 10000), // 平面几何体
+    {
+      waterNormals: new THREE.TextureLoader().load('/textures/water/waternormals.jpg', (texture) => {
+        texture.wrapS = texture.wrapT = THREE.RepeatWrapping
+      }) // 水面的法向纹理贴图
+    }
+  )
 }
 
 const enableShadow = (): void => {
@@ -155,17 +137,9 @@ const resize = (): void => {
 
 const render = (): void => {
   if (scene && camera && renderer) {
-    const elapsedTime = clock?.getElapsedTime()
-    const delta = clock?.getDelta()
-    const position = geometry.attributes.position
-    for (let index = 0; index < position.count; index++) {
-      const y = 10 * Math.sin(index / 5 + (elapsedTime - index * index / 5))
-      position.setY(index, y);
-    }
-    position.needsUpdate = true;
     renderer.render(scene, camera)
     if (controls) {
-      controls.update(delta)
+      controls.update()
     }
   }
   window.requestAnimationFrame(render)

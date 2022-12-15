@@ -159,17 +159,18 @@ const initAnimation = (): void => {
 
   // 旋转 quaternion
   const xAxis = new THREE.Vector3(1, 0, 0)
-  const quaternion_start = new THREE.Quaternion().setFromAxisAngle(xAxis, 0) // 通过绕着一个轴向旋转一个角度，获得四元数值，此时是 x 轴 转 0 deg
-  const quaternion_middle = new THREE.Quaternion().setFromAxisAngle(xAxis, Math.PI) // 此时是 x 轴 转 180 deg
-  const quaternion_end = new THREE.Quaternion().setFromAxisAngle(xAxis, Math.PI * 2) // 此时是 x 轴 转 360 deg
+  const quaternion_1 = new THREE.Quaternion().setFromAxisAngle(xAxis, 0) // 通过绕着一个轴向旋转一个角度，获得四元，此时是 x 轴 转 0 deg
+  const quaternion_2 = new THREE.Quaternion().setFromAxisAngle(xAxis, Math.PI / 2) // 此时是 x 轴 转 90 deg
+  const quaternion_3 = new THREE.Quaternion().setFromAxisAngle(xAxis, Math.PI) // 此时是 x 轴 转 180 deg
+  const quaternion_4 = new THREE.Quaternion().setFromAxisAngle(xAxis, Math.PI * 3 / 2) // 此时是 x 轴 转 270 deg
   const rotationKeyFrame: THREE.QuaternionKeyframeTrack = new THREE.QuaternionKeyframeTrack(
     '.quaternion',
     frameList, // 帧
     [
-      quaternion_start.x, quaternion_start.y, quaternion_start.z, quaternion_start.w,
-      quaternion_middle.x, quaternion_middle.y, quaternion_middle.z, quaternion_middle.w,
-      quaternion_end.x, quaternion_end.y, quaternion_end.z, quaternion_end.w,
-      quaternion_start.x, quaternion_start.y, quaternion_start.z, quaternion_start.w
+      quaternion_1.x, quaternion_1.y, quaternion_1.z, quaternion_1.w,
+      quaternion_2.x, quaternion_2.y, quaternion_2.z, quaternion_2.w,
+      quaternion_3.x, quaternion_3.y, quaternion_3.z, quaternion_3.w,
+      quaternion_4.x, quaternion_4.y, quaternion_4.z, quaternion_4.w
     ]
   )
 
