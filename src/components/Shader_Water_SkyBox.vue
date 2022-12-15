@@ -28,15 +28,17 @@ let renderer: THREE.WebGLRenderer | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let scene: THREE.Scene | null = null
 
-let light: THREE.HemisphereLight
-let directionLight: THREE.DirectionalLight
 let axesHelper: THREE.AxesHelper;
 let controls: OrbitControls;
 let clock: THREE.Clock
 
-let water: Water
-let sky: Sky
-const sunPosition: THREE.Vector3 = new THREE.Vector3(100, 2, 0)
+let cube: THREE.Mesh
+let water: Water // 水面
+let sky: Sky // 天空
+const sunPosition: THREE.Vector3 = new THREE.Vector3(100, 5, 0) // 太阳的位置， 会根据 y 的值 改变太阳的高度，sky 中的颜色也会随之变化
+
+let pmremGenerator: THREE.PMREMGenerator
+let renderTarget: THREE.WebGLRenderTarget
 
 
 const canvas = ref()
@@ -71,22 +73,23 @@ const initRenderer = (): void => {
   })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // 设置像素比，提高图形精度
   renderer.setSize(canvas.value.offsetWidth, canvas.value.offsetHeight) // 设置尺寸
-  renderer.outputEncoding = THREE.sRGBEncoding // 开启 RGB 色值输出解码，会使物体颜色更明亮
-  renderer.shadowMap.enabled = true // 开启阴影渲染
+  // renderer.outputEncoding = THREE.sRGBEncoding // 开启 RGB 色值输出解码，会使物体颜色更明亮
+  renderer.toneMapping = THREE.ACESFilmicToneMapping // 优化 sky 的渲染
+
+  pmremGenerator = new THREE.PMREMGenerator(renderer)
 }
 
 const initCamera = (): void => {
-  camera = new THREE.PerspectiveCamera(60, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 2000)
+  camera = new THREE.PerspectiveCamera(60, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 20000)
+  camera.position.set(10, 10, 50)
 }
 
 const initScene = (): void => {
   scene = new THREE.Scene()
-  scene.background = new THREE.Color(0xaaccff);
-  scene.fog = new THREE.FogExp2(0xaaccff, 0.0007);
 }
 
 const initAxesHelper = (): void => {
-  axesHelper = new THREE.AxesHelper(1)
+  axesHelper = new THREE.AxesHelper(10)
   if (scene) {
     scene.add(axesHelper)
   }
@@ -95,9 +98,12 @@ const initAxesHelper = (): void => {
 const initControls = (): void => {
   if (camera) {
     controls = new OrbitControls(camera, canvas.value)
-    controls.target.set(0, 0, 0)
-    controls.maxDistance = 5000
-    controls.minDistance = 10
+    controls.maxPolarAngle = Math.PI * 0.5 // 最大极角值
+    controls.minPolarAngle = Math.PI * 0.1 // 最小极角值
+    controls.target.set(0, 10, 0)
+    controls.maxDistance = 1000
+    controls.minDistance = 40
+    controls.update()
   }
 }
 
@@ -106,15 +112,55 @@ const initClock = (): void => {
 }
 
 const initMesh = (): void => {
-  // new Water(geometry: THREE.BufferGeometry, options: WaterOptions): Water
+
+  // cube
+  cube = new THREE.Mesh(
+    new THREE.BoxGeometry(10, 10, 10),
+    new THREE.MeshStandardMaterial({
+      roughness: 0
+    })
+  )
+  scene?.add(cube)
+
+  // Water 类: new Water(geometry: THREE.BufferGeometry, options: WaterOptions): Water
   water = new Water(
-    new THREE.PlaneGeometry(10000, 10000), // 平面几何体
+    new THREE.PlaneGeometry(20000, 20000), // 平面几何体
     {
+      textureWidth: 512, // 纹理宽度
+      textureHeight: 512, // 纹理高度
       waterNormals: new THREE.TextureLoader().load('/textures/water/waternormals.jpg', (texture) => {
         texture.wrapS = texture.wrapT = THREE.RepeatWrapping
-      }) // 水面的法向纹理贴图
+      }), // 水面的法向纹理贴图
+      waterColor: 0x001a1f, // 水的颜色
+      sunDirection: sunPosition, // 太阳的位置
+      sunColor: 0xffffff, // 太阳的颜色
+      distortionScale: 3.7,
+      fog: scene?.fog !== undefined
     }
   )
+  water.rotation.x = -(Math.PI / 2)
+  water.material.uniforms['sunDirection'].value.copy(sunPosition).normalize()
+  water.material.uniforms['size'].value = 5 // 水面纹理的尺寸
+  scene?.add(water)
+
+  // Sky
+  sky = new Sky()
+  sky.scale.setScalar(10000)
+  // console.log(sky)
+  sky.material.uniforms['sunPosition'].value.copy(sunPosition) // 给天空绑定 太阳 的位置
+  const skyUniforms = sky.material.uniforms
+  skyUniforms['turbidity'].value = 10
+  skyUniforms['rayleigh'].value = 2
+  skyUniforms['mieCoefficient'].value = 0.005
+  skyUniforms['mieDirectionalG'].value = 0.8
+  scene?.add(sky)
+
+  if (renderTarget !== undefined) renderTarget.dispose()
+
+  if (scene) {
+    renderTarget = pmremGenerator.fromScene(scene)
+    scene.environment = renderTarget.texture // 将 sky 的光照当作 scene 的环境
+  }
 }
 
 const enableShadow = (): void => {
@@ -136,10 +182,18 @@ const resize = (): void => {
 }
 
 const render = (): void => {
-  if (scene && camera && renderer) {
+  if (scene && camera && renderer && clock) {
     renderer.render(scene, camera)
-    if (controls) {
-      controls.update()
+
+    if (water) {
+      water.material.uniforms['time'].value += 1 / 60 // 每一帧都更新 time 的值，让 water 有动态的流动和起伏效果
+    }
+
+    if (cube) {
+      const elapsedTime = clock.getElapsedTime()
+      cube.rotation.x = elapsedTime * 0.5
+      cube.position.y = Math.sin(elapsedTime) * 5
+      cube.rotation.z = -elapsedTime * 0.5
     }
   }
   window.requestAnimationFrame(render)
@@ -161,55 +215,6 @@ const render = (): void => {
     #canvsa {
       width: 100%;
       height: 100%;
-    }
-  }
-
-  .clipList {
-    position: absolute;
-    top: 2rem;
-    left: 2rem;
-    width: max-content;
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    flex-wrap: nowrap;
-    cursor: pointer;
-    user-select: none;
-
-    .clipItem {
-      padding: 0 0.5rem;
-      box-sizing: border-box;
-      background-color: #fafafa;
-      height: 1.5rem;
-
-      &:hover {
-        background-color: #eeeeee;
-      }
-
-      p {
-        font-size: 0.6rem;
-        text-align: center;
-        color: #202020;
-        line-height: 1.5rem;
-      }
-
-      &:first-child {
-        border-top-left-radius: 4px;
-        border-bottom-left-radius: 4px;
-      }
-
-      &:last-child {
-        border-top-right-radius: 4px;
-        border-bottom-right-radius: 4px;
-      }
-    }
-
-    .active {
-      background-color: #0e8bf8 !important;
-
-      p {
-        color: #ffffff !important;
-      }
     }
   }
 }

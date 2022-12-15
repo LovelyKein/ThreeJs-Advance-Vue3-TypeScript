@@ -119,7 +119,7 @@ const initClock = (): void => {
 }
 
 const initMesh = (): void => {
-  geometry = new THREE.PlaneGeometry(20000, 20000,  200, 200);
+  geometry = new THREE.PlaneGeometry(20000, 20000, 200, 200);
   geometry.rotateX(- Math.PI / 2);
   // const position: any = geometry.attributes.position
   // position.usage = THREE.DynamicDrawUsage;
@@ -155,9 +155,10 @@ const resize = (): void => {
 
 const render = (): void => {
   if (scene && camera && renderer) {
-    const elapsedTime = clock?.getElapsedTime()
-    const delta = clock?.getDelta()
-    const position = geometry.attributes.position
+    const elapsedTime = clock.getElapsedTime()
+    const delta = clock.getDelta()
+    const position = geometry.attributes.position // 从几何体中获取 position 属性
+    console.log(position)
     for (let index = 0; index < position.count; index++) {
       const y = 10 * Math.sin(index / 5 + (elapsedTime - index * index / 5))
       position.setY(index, y);

@@ -122,9 +122,9 @@ export const routes: RouteRecordRaw[] = [
     name: "Shader_Water_Sky",
     component: () => import("@/components/Shader_Water_SkyBox.vue"),
     meta: {
-      label: "Shader 水面/天空",
+      label: "Shader Water/Sky",
       lesson: "22",
-      keys: ["Water", "Sky", "Points"],
+      keys: ["Water", "Sky", "Points"]
     },
   },
 ];
