@@ -214,7 +214,7 @@ const render = (): void => {
 .content_box {
   width: 100%;
   height: 100%;
-  position: absolute;
+  position: relative;
   overflow: hidden;
 
   .canvas_box {
@@ -224,55 +224,6 @@ const render = (): void => {
     #canvsa {
       width: 100%;
       height: 100%;
-    }
-  }
-
-  .clipList {
-    position: absolute;
-    top: 2rem;
-    left: 2rem;
-    width: max-content;
-    display: flex;
-    justify-content: flex-start;
-    align-items: center;
-    flex-wrap: nowrap;
-    cursor: pointer;
-    user-select: none;
-
-    .clipItem {
-      padding: 0 0.5rem;
-      box-sizing: border-box;
-      background-color: #fafafa;
-      height: 1.5rem;
-
-      &:hover {
-        background-color: #eeeeee;
-      }
-
-      p {
-        font-size: 0.6rem;
-        text-align: center;
-        color: #202020;
-        line-height: 1.5rem;
-      }
-
-      &:first-child {
-        border-top-left-radius: 4px;
-        border-bottom-left-radius: 4px;
-      }
-
-      &:last-child {
-        border-top-right-radius: 4px;
-        border-bottom-right-radius: 4px;
-      }
-    }
-
-    .active {
-      background-color: #0e8bf8 !important;
-
-      p {
-        color: #ffffff !important;
-      }
     }
   }
 }

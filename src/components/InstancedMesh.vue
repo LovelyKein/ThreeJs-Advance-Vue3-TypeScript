@@ -35,7 +35,7 @@ let rayCaster: THREE.Raycaster
 let axesHelper: THREE.AxesHelper;
 let controls: OrbitControls;
 
-let row: number = 10
+let row: number = 5
 let count: number = Math.pow(row, 3)
 let white: THREE.Color = new THREE.Color().setHex(0xffffff)
 let color: THREE.Color = new THREE.Color()
@@ -113,7 +113,7 @@ const initRayCaster = (): void => {
 }
 
 const initMesh = (): void => {
-  const geometry = new THREE.IcosahedronGeometry(0.5, 2) // 正 20 面体
+  const geometry = new THREE.IcosahedronGeometry(0.5, 3) // 正 20 面体
   const material = new THREE.MeshPhongMaterial({
     color: 0xffffff
   })
@@ -122,12 +122,12 @@ const initMesh = (): void => {
   // console.log(meshes)
 
   let index: number = 0
-  let offset: number = (row - 1) / 2 // 4.5
+  let offset: number = (row - 1) / 2 // 2
   let matrix: THREE.Matrix4 = new THREE.Matrix4() // 矩阵
   for (let x = 0; x < row; x++) {
     for (let y = 0; y < row; y++) {
       for (let z = 0; z < row; z++) {
-        matrix.setPosition(offset - x, offset - y, offset - z) // -4.5 ~ 4.5
+        matrix.setPosition(offset - x, offset - y, offset - z) // -2 ~ 2
         meshes.setMatrixAt(index, matrix) // 给对应索引的几何体设置矩阵
         meshes.setColorAt(index, white) // 给对应索引的几何体设置颜色
         index++
@@ -185,7 +185,8 @@ const render = (): void => {
 .content_box {
   width: 100%;
   height: 100%;
-  position: absolute;
+  position: relative;
+  overflow: hidden;
 
   .canvas_box {
     width: 100%;

@@ -1,6 +1,6 @@
 <template>
-  <div class="container">
-    <Layout/>
+  <div class="content_wap">
+    <RouterView></RouterView>
   </div>
 </template>
 
@@ -8,7 +8,6 @@
 /** Composition API **/
 
 /** Components **/
-import Layout from '@/layout/Layout.vue';
 
 /** 外部依赖 **/
 
@@ -25,11 +24,10 @@ import Layout from '@/layout/Layout.vue';
 </script>
 
 <style lang='scss' scoped>
-.container {
-  width: 100vw;
-  height: 100vh;
-  font-family: Avenir, '苹方-简', Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
+.content_wap {
+  width: 100%;
+  height: 100%;
+  position: relative;
   overflow: hidden;
 }
 </style>

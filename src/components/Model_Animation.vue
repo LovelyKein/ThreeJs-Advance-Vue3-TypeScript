@@ -251,7 +251,7 @@ const render = (): void => {
 .content_box {
   width: 100%;
   height: 100%;
-  position: absolute;
+  position: relative;
 
   .canvas_box {
     width: 100%;
