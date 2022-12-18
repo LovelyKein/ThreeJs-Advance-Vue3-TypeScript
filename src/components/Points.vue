@@ -9,7 +9,7 @@
 <script setup lang='ts'>
 
 /** Composition API **/
-import { onMounted, ref, reactive } from 'vue'
+import { onMounted, ref, reactive, onUnmounted } from 'vue'
 
 /** Components **/
 
@@ -66,6 +66,10 @@ onMounted((): void => {
   resize()
 })
 
+onUnmounted(() => {
+  renderer?.dispose()
+})
+
 /** 方法 **/
 const initRenderer = (): void => {
   canvas.value.style['cursor'] = 'pointer'
@@ -87,7 +91,7 @@ const initCamera = (): void => {
 
 const initScene = (): void => {
   scene = new THREE.Scene()
-  scene.fog = new THREE.FogExp2(0x000000, 0.001)
+  scene.fog = new THREE.FogExp2(0x000000, 0.001) // 雾
 }
 
 const initAxesHelper = (): void => {

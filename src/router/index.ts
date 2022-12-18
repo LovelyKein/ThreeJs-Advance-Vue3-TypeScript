@@ -84,7 +84,7 @@ export const routes: RouteRecordRaw[] = [
     meta: {
       label: "几何挤压",
       lesson: "08",
-      keys: ["CatmullRomCurve3", "Shape", "ExtrudeGeometry"],
+      keys: ["Shape", "ExtrudeGeometry"],
     },
   },
   {
@@ -94,7 +94,7 @@ export const routes: RouteRecordRaw[] = [
     meta: {
       label: "动态几何",
       lesson: "09",
-      keys: ["TextureLoader", "needsUpdate"],
+      keys: ["TextureLoader", "attributes"],
     },
   },
   {
@@ -114,17 +114,17 @@ export const routes: RouteRecordRaw[] = [
     meta: {
       label: "多点网格",
       lesson: "11",
-      keys: ["BufferGeometry", "Float32BufferAttribute", "Points"],
+      keys: ["BufferGeometry", "Points"],
     },
   },
   {
     path: "/12",
-    name: "Shader_Water_Sky",
-    component: () => import("@/components/Shader_Water_SkyBox.vue"),
+    name: "Water_Sky",
+    component: () => import("@/components/Water_SkyBox.vue"),
     meta: {
-      label: "Shader Water/Sky",
+      label: "Water / Sky",
       lesson: "12",
-      keys: ["Water", "Sky", "Points"],
+      keys: ["Water", "Sky", "Mesh"],
     },
   },
   {
@@ -135,6 +135,36 @@ export const routes: RouteRecordRaw[] = [
       label: "CustomShader",
       lesson: "13",
       keys: ["VertexShader", "FragmentShader"],
+    },
+  },
+  {
+    path: "/14",
+    name: "GeometryVertex_Points",
+    component: () => import("@/components/GeometryVertex_Points.vue"),
+    meta: {
+      label: "GeometryVertex_Points",
+      lesson: "14",
+      keys: ["BufferGeometryUtils", "BoxGeometry"],
+    },
+  },
+  {
+    path: "/15",
+    name: "EffectComposer",
+    component: () => import("@/components/EffectComposer.vue"),
+    meta: {
+      label: "EffectComposer",
+      lesson: "15",
+      keys: ["EffectComposer", "GLTFLoader"],
+    },
+  },
+  {
+    path: "/16",
+    name: "Earth_WorldJson",
+    component: () => import("@/components/Earth_WorldJson.vue"),
+    meta: {
+      label: "Earth_WorldJson",
+      lesson: "16",
+      keys: ["Earth", "GeoJson"],
     },
   },
 ];

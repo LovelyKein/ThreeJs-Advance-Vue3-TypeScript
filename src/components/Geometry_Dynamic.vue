@@ -9,7 +9,7 @@
 <script setup lang='ts'>
 
 /** Composition API **/
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, onUnmounted } from 'vue'
 
 /** Components **/
 
@@ -49,13 +49,16 @@ onMounted((): void => {
   initCamera()
   initScene()
   initAxesHelper()
-  // initLight()
   initControls()
   initClock()
   initMesh()
   enableShadow()
   render()
   resize()
+})
+
+onUnmounted(() => {
+  renderer?.dispose()
 })
 
 /** 方法 **/
@@ -87,22 +90,6 @@ const initAxesHelper = (): void => {
   axesHelper = new THREE.AxesHelper(1)
   if (scene) {
     scene.add(axesHelper)
-  }
-}
-
-const initLight = (): void => {
-  light = new THREE.HemisphereLight() // 不传参数，就是白色光
-  light.intensity = 0.4 // 强度
-  light.position.set(0, 1, 0)
-
-  // 方向光，平行光，模拟太阳光
-  directionLight = new THREE.DirectionalLight()
-  directionLight.position.set(5, 5, 5)
-  directionLight.intensity = 0.8
-
-  if (scene) {
-    scene.add(light)
-    scene.add(directionLight)
   }
 }
 

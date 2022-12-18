@@ -9,7 +9,7 @@
 <script setup lang='ts'>
 
 /** Composition API **/
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, onUnmounted } from 'vue'
 
 /** Components **/
 
@@ -53,6 +53,10 @@ onMounted((): void => {
   enableShadow()
   render()
   resize()
+})
+
+onUnmounted(() => {
+  renderer?.dispose()
 })
 
 /** 方法 **/

@@ -23,7 +23,7 @@
 import { menuItem } from '@/types/menu'
 
 /** Composition API **/
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 
 /** Components **/
 
@@ -45,6 +45,12 @@ let chooseIndex = ref(0)
 onMounted(() => {
   if (localStorage.getItem('chooseIndex')) {
     chooseIndex.value = Number(localStorage.getItem('chooseIndex'))
+    // 下一次页面更新时重置路由
+    nextTick(() => {
+      router.push({
+        path: props.list[chooseIndex.value].path
+      })
+    })
   }
 })
 
@@ -67,7 +73,6 @@ const goPage = (path: string, index: number): void => {
   box-sizing: border-box;
   user-select: none;
   background-color: #f3f3f3;
-  overflow: hidden;
 
   .head_title {
     width: 100%;
@@ -93,7 +98,6 @@ const goPage = (path: string, index: number): void => {
     .menu_list {
       width: 100%;
       height: 100%;
-      overflow-x: hidden;
       overflow-y: auto;
 
       &::-webkit-scrollbar {
@@ -119,7 +123,7 @@ const goPage = (path: string, index: number): void => {
         height: max-content;
         margin-top: 1.2rem;
         background-color: #f3f3f3;
-        border-radius: 4px;
+        border-radius: 6px;
         box-sizing: border-box;
         cursor: pointer;
         padding: 1rem;

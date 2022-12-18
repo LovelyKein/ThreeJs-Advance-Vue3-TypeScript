@@ -59,7 +59,6 @@ onMounted((): void => {
   .left_part {
     width: 18%;
     height: 100%;
-    overflow: hidden;
   }
   .right_part {
     width: 82%;

@@ -14,7 +14,7 @@
 <script setup lang='ts'>
 
 /** Composition API **/
-import { onMounted, ref, reactive } from 'vue'
+import { onMounted, ref, reactive, onUnmounted } from 'vue'
 
 /** Components **/
 
@@ -87,6 +87,10 @@ onMounted((): void => {
   initClock()
   render()
   resize()
+})
+
+onUnmounted(() => {
+  renderer?.dispose()
 })
 
 /** 方法 **/

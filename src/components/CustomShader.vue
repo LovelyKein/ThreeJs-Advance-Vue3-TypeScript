@@ -9,15 +9,13 @@
 <script setup lang='ts'>
 
 /** Composition API **/
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, onUnmounted } from 'vue'
 
 /** Components **/
 
 /** 外部依赖 **/
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
-import { Water } from 'three/examples/jsm/objects/Water'
-import { Sky } from 'three/examples/jsm/objects/Sky'
 
 /** API **/
 
@@ -28,17 +26,20 @@ let renderer: THREE.WebGLRenderer | null = null
 let camera: THREE.PerspectiveCamera | null = null
 let scene: THREE.Scene | null = null
 
-let axesHelper: THREE.AxesHelper;
-let controls: OrbitControls;
 let clock: THREE.Clock
 
-let cube: THREE.Mesh
-let water: Water // 水面
-let sky: Sky // 天空
-const sunPosition: THREE.Vector3 = new THREE.Vector3(100, 5, 0) // 太阳的位置， 会根据 y 的值 改变太阳的高度（海拔），sky 中的颜色也会随之变化
+let geometry: THREE.BoxGeometry
 
-let pmremGenerator: THREE.PMREMGenerator
-let renderTarget: THREE.WebGLRenderTarget
+interface uniformInterface {
+  time: {
+    value: number
+  };
+  colorTexture?: {
+    value: THREE.Texture
+  };
+}
+let uniforms_1: uniformInterface
+let uniforms_2: uniformInterface
 
 
 const canvas = ref()
@@ -54,13 +55,15 @@ onMounted((): void => {
   initRenderer()
   initCamera()
   initScene()
-  initAxesHelper()
-  initControls()
   initClock()
   initMesh()
   enableShadow()
   render()
   resize()
+})
+
+onUnmounted(() => {
+  renderer?.dispose()
 })
 
 /** 方法 **/
@@ -73,38 +76,16 @@ const initRenderer = (): void => {
   })
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // 设置像素比，提高图形精度
   renderer.setSize(canvas.value.offsetWidth, canvas.value.offsetHeight) // 设置尺寸
-  // renderer.outputEncoding = THREE.sRGBEncoding // 开启 RGB 色值输出解码，会使物体颜色更明亮
-  renderer.toneMapping = THREE.ACESFilmicToneMapping // 优化 sky 的渲染
-
-  pmremGenerator = new THREE.PMREMGenerator(renderer)
+  renderer.outputEncoding = THREE.sRGBEncoding // 开启 RGB 色值输出解码，会使物体颜色更明亮
 }
 
 const initCamera = (): void => {
-  camera = new THREE.PerspectiveCamera(60, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 20000)
-  camera.position.set(10, 10, 50)
+  camera = new THREE.PerspectiveCamera(40, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 3000)
+  camera.position.z = 4
 }
 
 const initScene = (): void => {
   scene = new THREE.Scene()
-}
-
-const initAxesHelper = (): void => {
-  axesHelper = new THREE.AxesHelper(10)
-  if (scene) {
-    scene.add(axesHelper)
-  }
-}
-
-const initControls = (): void => {
-  if (camera) {
-    controls = new OrbitControls(camera, canvas.value)
-    controls.maxPolarAngle = Math.PI * 0.5 // 最大极角（与 xy 平面的夹角）值
-    controls.minPolarAngle = Math.PI * 0.1 // 最小极角值
-    controls.target.set(0, 10, 0)
-    controls.maxDistance = 2000 // 最远距离
-    controls.minDistance = 40 // 最近距离
-    controls.update()
-  }
 }
 
 const initClock = (): void => {
@@ -112,55 +93,135 @@ const initClock = (): void => {
 }
 
 const initMesh = (): void => {
+  geometry = new THREE.BoxGeometry(0.75, 0.75, 0.75)
 
-  // cube
-  cube = new THREE.Mesh(
-    new THREE.BoxGeometry(10, 10, 10),
-    new THREE.MeshStandardMaterial({
-      roughness: 0
-    })
-  )
-  scene?.add(cube)
+  // 顶点着色器
+  const vertexShader = `
+    varying vec2 vUv;
 
-  // Water 类: new Water(geometry: THREE.BufferGeometry, options: WaterOptions): Water
-  water = new Water(
-    new THREE.PlaneGeometry(20000, 20000), // 平面几何体
-    {
-      textureWidth: 512, // 纹理宽度
-      textureHeight: 512, // 纹理高度
-      waterNormals: new THREE.TextureLoader().load('/textures/water/waternormals.jpg', (texture) => {
-        texture.wrapS = texture.wrapT = THREE.RepeatWrapping
-      }), // 水面的法向纹理贴图
-      waterColor: 0x001a1f, // 水的颜色
-      sunDirection: sunPosition, // 太阳的位置
-      sunColor: 0xffffff, // 太阳的颜色
-      distortionScale: 3.7,
-      fog: scene?.fog !== undefined
+    void main() {
+      vUv = uv;
+      vec4 mvPosition = modelViewMatrix * vec4( position, 1.0 );
+      gl_Position = projectionMatrix * mvPosition;
     }
-  )
-  water.rotation.x = -(Math.PI / 2)
-  // console.log(water)
-  water.material.uniforms['sunDirection'].value.copy(sunPosition).normalize()
-  water.material.uniforms['size'].value = 5 // 水面纹理的尺寸
-  scene?.add(water)
+  `
 
-  // Sky
-  sky = new Sky()
-  sky.scale.setScalar(20000) // 天空盒子的比例尺，。默认尺寸是 1 ，此处时放大 20000，与 Water 水面尺寸相符
-  // console.log(sky)
-  const skyUniforms = sky.material.uniforms
-  skyUniforms['sunPosition'].value.copy(sunPosition) // 给天空绑定 太阳 的位置
-  skyUniforms['turbidity'].value = 10 // 浑浊度
-  skyUniforms['rayleigh'].value = 5 // 发光强度
-  skyUniforms['mieCoefficient'].value = 0.005 // 最小系数
-  skyUniforms['mieDirectionalG'].value = 0.8
-  scene?.add(sky)
+  // 片元着色器
+  const fragmentShader_1 = `
+    uniform float time;
+		varying vec2 vUv;
 
-  if (renderTarget !== undefined) renderTarget.dispose()
+		void main(void) {
+      vec2 p = - 1.0 + 2.0 * vUv;
+      float a = time * 40.0;
+      float d, e, f, g = 1.0 / 40.0 ,h ,i ,r ,q;
 
-  if (scene) {
-    renderTarget = pmremGenerator.fromScene(scene)
-    scene.environment = renderTarget.texture // 将 sky 的光照当作 scene 的环境
+      e = 400.0 * ( p.x * 0.5 + 0.5 );
+      f = 400.0 * ( p.y * 0.5 + 0.5 );
+      i = 200.0 + sin( e * g + a / 150.0 ) * 20.0;
+      d = 200.0 + cos( f * g / 2.0 ) * 18.0 + cos( e * g ) * 7.0;
+      r = sqrt( pow( abs( i - e ), 2.0 ) + pow( abs( d - f ), 2.0 ) );
+      q = f / r;
+      e = ( r * cos( q ) ) - a / 2.0;
+      f = ( r * sin( q ) ) - a / 2.0;
+      d = sin( e * g ) * 176.0 + sin( e * g ) * 164.0 + r;
+      h = ( ( f + d ) + a / 2.0 ) * g;
+      i = cos( h + r * p.x / 1.3 ) * ( e + e + a ) + cos( q * g * 6.0 ) * ( r + h / 3.0 );
+      h = sin( f * g ) * 144.0 - sin( e * g ) * 212.0 * p.x;
+      h = ( h + ( f - e ) * q + sin( r - ( a + h ) / 7.0 ) * 10.0 + i / 4.0 ) * g;
+      i += cos( h * 2.3 * sin( a / 350.0 - q ) ) * 184.0 * sin( q - ( r * 4.3 + a / 12.0 ) * g ) + tan( r * g + h ) * 184.0 * cos( r * g + h );
+      i = mod( i / 5.6, 256.0 ) / 64.0;
+      if ( i < 0.0 ) i += 4.0;
+      if ( i >= 2.0 ) i = 4.0 - i;
+      d = r / 350.0;
+      d += sin( d * d * 8.0 ) * 0.52;
+      f = ( sin( a * g ) + 1.0 ) / 2.0;
+      gl_FragColor = vec4( vec3( f * i / 1.6, i / 2.0 + d / 13.0, i ) * d * p.x + vec3( i / 1.3 + d / 8.0, i / 2.0 + d / 18.0, i ) * d * ( 1.0 - p.x ), 1.0 );
+    }
+  `
+
+  const fragmentShader_2 = `
+    uniform float time;
+    uniform sampler2D colorTexture;
+    varying vec2 vUv;
+
+    void main( void ) {
+      vec2 position = - 1.0 + 2.0 * vUv;
+
+      float a = atan( position.y, position.x );
+      float r = sqrt( dot( position, position ) );
+
+      vec2 uv;
+      uv.x = cos( a ) / r;
+      uv.y = sin( a ) / r;
+      uv /= 10.0;
+      uv += time * 0.05;
+
+      vec3 color = texture2D( colorTexture, uv ).rgb;
+
+      gl_FragColor = vec4( color * r * 1.5, 1.0 );
+    }
+  `
+
+  const fragmentShader_3 = `
+    uniform float time;
+    varying vec2 vUv;
+
+    void main( void ) {
+      vec2 position = vUv;
+
+      float color = 0.0;
+      color += sin( position.x * cos( time / 15.0 ) * 80.0 ) + cos( position.y * cos( time / 15.0 ) * 10.0 );
+      color += sin( position.y * sin( time / 10.0 ) * 40.0 ) + cos( position.x * sin( time / 25.0 ) * 40.0 );
+      color += sin( position.x * sin( time / 5.0 ) * 10.0 ) + sin( position.y * sin( time / 35.0 ) * 80.0 );
+      color *= sin( time / 10.0 ) * 0.5;
+
+      gl_FragColor = vec4( vec3( color, color * 0.5, sin( color + time / 3.0 ) * 0.75 ), 1.0 );
+    }
+  `
+
+  const fragmentShader_4 = `
+    uniform float time;
+    varying vec2 vUv;
+    
+    void main( void ) {
+      vec2 position = - 1.0 + 2.0 * vUv;
+
+      float red = abs( sin( position.x * position.y + time / 5.0 ) );
+      float green = abs( sin( position.x * position.y + time / 4.0 ) );
+      float blue = abs( sin( position.x * position.y + time / 3.0 ) );
+      gl_FragColor = vec4( red, green, blue, 1.0 );
+    }
+  `
+
+  uniforms_1 = {
+    'time': { value: 1.0 }
+  };
+  uniforms_2 = {
+    'time': { value: 1.0 },
+    'colorTexture': { value: new THREE.TextureLoader().load('/textures/disturb.jpg') }
+  }
+  if (uniforms_2.colorTexture) {
+    uniforms_2['colorTexture'].value.wrapS = uniforms_2['colorTexture'].value.wrapT = THREE.RepeatWrapping
+  }
+
+  const params = [
+    [vertexShader, fragmentShader_1, uniforms_1], // 左下
+    [vertexShader, fragmentShader_2, uniforms_2], // 左上
+    [vertexShader, fragmentShader_3, uniforms_1], // 右下
+    [vertexShader, fragmentShader_4, uniforms_1] // 右上
+  ]
+
+  for (let index = 0; index < params.length; index++) {
+    const material = new THREE.ShaderMaterial({
+      uniforms: params[index][2] as any,
+      vertexShader: params[index][0] as string,
+      fragmentShader: params[index][1] as string
+    })
+    const cube = new THREE.Mesh(geometry, material)
+    cube.position.x = index - (params.length - 1) / 2
+    cube.position.y = index % 2 - 0.5
+    scene?.add(cube)
   }
 }
 
@@ -184,18 +245,18 @@ const resize = (): void => {
 
 const render = (): void => {
   if (scene && camera && renderer && clock) {
+    const delta = clock.getDelta()
+
+    uniforms_1['time'].value += delta * 5
+    uniforms_2['time'].value = clock.elapsedTime
+
+    for (let i = 0; i < scene.children.length; i++) {
+      const cube = scene.children[i]
+      cube.rotation.y += delta * 0.5 * (i % 2 ? 1 : - 1)
+      cube.rotation.x += delta * 0.5 * (i % 2 ? - 1 : 1)
+    }
+
     renderer.render(scene, camera)
-
-    if (water) {
-      water.material.uniforms['time'].value += 1 / 60 // 每一帧都更新 time 的值，让 water 有动态的流动和起伏效果
-    }
-
-    if (cube) {
-      const elapsedTime = clock.getElapsedTime()
-      cube.rotation.x = elapsedTime * 0.5
-      cube.position.y = Math.sin(elapsedTime) * 5
-      cube.rotation.z = -elapsedTime * 0.5
-    }
   }
   window.requestAnimationFrame(render)
 }

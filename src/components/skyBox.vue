@@ -9,7 +9,7 @@
 <script setup lang='ts'>
 
 /** Composition API **/
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, onUnmounted } from 'vue'
 
 /** Components **/
 
@@ -42,7 +42,7 @@ const envUrls = ref<string[]>(
 )
 let textureCube: THREE.CubeTexture
 let meshes: THREE.InstancedMesh
-const count: number = 300
+const count: number = 500
 const matrix = new THREE.Matrix4()
 
 
@@ -66,6 +66,10 @@ onMounted((): void => {
   enableShadow()
   render()
   resize()
+})
+
+onUnmounted(() => {
+  renderer?.dispose()
 })
 
 /** 方法 **/
@@ -167,19 +171,19 @@ const resize = (): void => {
 const render = (): void => {
   if (scene && camera && renderer) {
     // 时间帧动画，螺旋漏斗状星系
-    // const elapsedTime: number = clock.getElapsedTime() // 获取流失的时间
-    // for (let index = 0; index < count; index++) {
-    //   const position = matrix.setPosition(
-    //     new THREE.Vector3(
-    //       Math.cos(elapsedTime + index * 0.5) * index * 0.1, // x 轴做往复运动， index 越大，值域越大， 偏移值越大
-    //       Math.sin(elapsedTime) * index * 0.05, // y 轴做往复运动， index 越大，值域越大
-    //       -Math.sin(elapsedTime + index * 0.5) * index * 0.1
-    //     )
-    //   )
-    //   meshes.setMatrixAt(index, position)
-    // }
-    // const obj: any = meshes.instanceMatrix
-    // obj.needsUpdate = true // 通知实例网格需要更新颜色
+    const elapsedTime: number = clock.getElapsedTime() // 获取流失的时间
+    for (let index = 0; index < count; index++) {
+      const position = matrix.setPosition(
+        new THREE.Vector3(
+          Math.cos(elapsedTime + index * 0.5) * index * 0.1, // x 轴做往复运动， index 越大，值域越大， 偏移值越大
+          Math.sin(elapsedTime) * index * 0.05, // y 轴做往复运动， index 越大，值域越大
+          -Math.sin(elapsedTime + index * 0.5) * index * 0.1
+        )
+      )
+      meshes.setMatrixAt(index, position)
+    }
+    const obj: any = meshes.instanceMatrix
+    obj.needsUpdate = true // 通知实例网格需要更新 position 位置
     renderer.render(scene, camera)
     if (controls) {
       controls.update()

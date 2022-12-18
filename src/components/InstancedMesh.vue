@@ -12,7 +12,7 @@
 <script setup lang='ts'>
 
 /** Composition API **/
-import { onMounted, ref, reactive } from 'vue'
+import { onMounted, ref, reactive, onUnmounted } from 'vue'
 
 /** Components **/
 
@@ -63,6 +63,10 @@ onMounted((): void => {
   render()
   resize()
   mouseMove()
+})
+
+onUnmounted(() => {
+  renderer?.dispose()
 })
 
 /** 方法 **/
