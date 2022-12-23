@@ -4,7 +4,7 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/",
     redirect: {
-      path: "/04",
+      path: "/01",
     },
   },
   {

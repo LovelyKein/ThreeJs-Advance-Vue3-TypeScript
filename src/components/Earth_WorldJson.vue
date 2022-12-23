@@ -118,10 +118,10 @@ const initControls = (): void => {
     controls.target.set(0, 0, 0) // 设置轨道控制中心
     controls.enableDamping = true // 开启鼠标的动量惯性
     controls.maxPolarAngle = Math.PI
-    controls.minDistance = RADIUS * 1.1
+    controls.minDistance = RADIUS * 1.05
     controls.maxDistance = RADIUS * 3
     controls.rotateSpeed = 0.5
-    controls.zoomSpeed = 0.5
+    controls.zoomSpeed = 1.0
     // 监听 controls 状态发生改变的事件
     controls.addEventListener('change', (e) => {
       const distance: number = controls.getDistance()
@@ -133,20 +133,25 @@ const initControls = (): void => {
 
 const initMesh = (): void => {
   const textureLoad = new THREE.TextureLoader()
+
+  const mapTexturen = textureLoad.load('/textures/planet/earth_atmos_2048.jpg')
+  // const normalTexture = textureLoad.load('/textures/planet/earth_normal_2048.jpg')
+
   const geometry = new THREE.SphereGeometry(RADIUS, 36, 36)
   const material = new THREE.MeshLambertMaterial({
     // side: THREE.DoubleSide,
     transparent: true,
     opacity: 1,
     // color: new THREE.Color().setHex(0x1111ff),
-    map: textureLoad.load('/textures/planet/earth_atmos_2048.jpg'),
-    normalMap: textureLoad.load('/textures/planet/earth_normal_2048.jpg'),
+    map: mapTexturen,
+    // normalMap: normalTexture,
   })
   earth = new THREE.Mesh(geometry, material)
   scene?.add(earth)
 
+  // 位置测试（经纬度 --> 球面坐标）
   const point = new THREE.Mesh(
-    new THREE.IcosahedronGeometry(5, 3),
+    new THREE.IcosahedronGeometry(6, 0),
     new THREE.MeshLambertMaterial({
       color: 0xff1155
     })
@@ -159,7 +164,7 @@ const initMesh = (): void => {
 }
 
 const initWorld = (): void => {
-  const fileLoader = new THREE.FileLoader()
+  const fileLoader = new THREE.FileLoader() // 文件加载器
   fileLoader.setResponseType('json') // 设置响应的数据类型是 json 类型
   fileLoader.load('/json/world.json', (geo) => {
     console.log(geo)
