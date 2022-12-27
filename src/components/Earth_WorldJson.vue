@@ -33,10 +33,12 @@ let light: THREE.HemisphereLight
 let directionLight: THREE.DirectionalLight
 let axesHelper: THREE.AxesHelper;
 let controls: OrbitControls;
+let clock: THREE.Clock
 
 const RADIUS: number = 1000 // 地球半径
 
 let earth: THREE.Group
+let dynamicMeshList = ref<THREE.Mesh[]>([]) // 保存动态圈网格，用来在 帧动画 中做动态效果
 
 const canvas = ref()
 
@@ -54,6 +56,7 @@ onMounted((): void => {
   initAxesHelper()
   initLight()
   initControls()
+  initClock()
   initMesh()
   render()
   resize()
@@ -129,6 +132,10 @@ const initControls = (): void => {
       controls.zoomSpeed = 0.5 * (distance / (controls.maxDistance * 2))
     })
   }
+}
+
+const initClock = (): void => {
+  clock = new THREE.Clock()
 }
 
 const initMesh = (): void => {
@@ -351,8 +358,9 @@ const initLightCross = (load: THREE.FileLoader, url: string): Promise<THREE.Grou
       news.name = 'news'
 
       const textureLoad = new THREE.TextureLoader()
-      const circleMap = textureLoad.load('/public/textures/circle.png')
-      const lightMap = textureLoad.load('/public/textures/light_cross.png')
+      const circleMap = textureLoad.load('/textures/circle.png')
+      const lightMap = textureLoad.load('/textures/light_cross.png')
+      const dynamicCircle = textureLoad.load('/textures/dynamic_circle.png')
 
       // 标注网格
       const size = RADIUS * 0.03
@@ -361,7 +369,18 @@ const initLightCross = (load: THREE.FileLoader, url: string): Promise<THREE.Grou
         map: circleMap,
         color: 0x22ffcc,
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.8,
+        side: THREE.DoubleSide
+      })
+
+      // 动态光圈 网格
+      const size_dynamicCircle = RADIUS * 0.05
+      const circleGeometry_dynamicCircle = new THREE.PlaneGeometry(1, 1) // 此时平面处于 XOY 平面
+      const circleMaterial_dynamicCircle = new THREE.MeshBasicMaterial({
+        map: dynamicCircle,
+        color: 0x22ffcc,
+        transparent: true,
+        opacity: 1,
         side: THREE.DoubleSide
       })
 
@@ -395,6 +414,14 @@ const initLightCross = (load: THREE.FileLoader, url: string): Promise<THREE.Grou
         const meshPlaneNormal = new THREE.Vector3(0, 0, 1) // circle 网格的法向量
         circleMesh.quaternion.setFromUnitVectors(meshPlaneNormal, coordinateVectorNormal) // 根据两组向量计算四元数
 
+        // dynamicCircle 动态网格
+        const dynamicCircleMesh = new THREE.Mesh(circleGeometry_dynamicCircle, circleMaterial_dynamicCircle)
+        dynamicCircleMesh.name = 'dynamic_circle'
+        dynamicCircleMesh.scale.set(size_dynamicCircle, size_dynamicCircle, size_dynamicCircle)
+        dynamicCircleMesh.position.set(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)
+        dynamicCircleMesh.quaternion.setFromUnitVectors(meshPlaneNormal, coordinateVectorNormal) // 根据两组向量计算四元数
+        dynamicMeshList.value.push(dynamicCircleMesh)
+
         // light 光柱 网格
         const lightMeshGroup = new THREE.Group() // 光效灯柱网格的组合，每个组合里有 2 个 mesh
         lightMeshGroup.name = 'lightMeshGroup'
@@ -407,6 +434,7 @@ const initLightCross = (load: THREE.FileLoader, url: string): Promise<THREE.Grou
         lightMeshGroup.quaternion.setFromUnitVectors(meshLightNormal, coordinateVectorNormal)
 
         newItem.add(circleMesh)
+        newItem.add(dynamicCircleMesh)
         newItem.add(lightMeshGroup)
 
         news.add(newItem)
@@ -446,6 +474,23 @@ const resize = (): void => {
 
 const render = (): void => {
   if (scene && camera && renderer) {
+    const delta = clock.getDelta()
+    if (earth) {
+      earth.rotation.y += delta * 0.02 // 地球自旋转
+    }
+    if (dynamicMeshList.value.length) {
+      // console.log(dynamicMeshList)
+      dynamicMeshList.value.forEach((mesh) => {
+        if (mesh.scale.x >= 100) {
+          mesh.scale.set(50, 50, 1)
+          // mesh.material.opacity = 1
+        } else {
+          // mesh.material.opacity -= 50 / 60 * 1
+        }
+        mesh.scale.x += 1
+        mesh.scale.y += 1
+      })
+    }
     renderer.render(scene, camera)
   }
   if (controls) {
