@@ -18,7 +18,7 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 
 import { lngLatToXYZ } from '@/utils/coordinate'
-import { Float32BufferAttribute, Material } from 'three';
+import { Float16BufferAttribute, Float32BufferAttribute, Material, Mesh } from 'three';
 
 /** API **/
 
@@ -39,6 +39,7 @@ const RADIUS: number = 1000 // 地球半径
 
 let earth: THREE.Group
 let dynamicMeshList = ref<THREE.Mesh[]>([]) // 保存动态圈网格，用来在 帧动画 中做动态效果
+const size_dynamicCircle = RADIUS * 0.05
 
 const canvas = ref()
 
@@ -374,7 +375,6 @@ const initLightCross = (load: THREE.FileLoader, url: string): Promise<THREE.Grou
       })
 
       // 动态光圈 网格
-      const size_dynamicCircle = RADIUS * 0.05
       const circleGeometry_dynamicCircle = new THREE.PlaneGeometry(1, 1) // 此时平面处于 XOY 平面
       const circleMaterial_dynamicCircle = new THREE.MeshBasicMaterial({
         map: dynamicCircle,
@@ -415,10 +415,11 @@ const initLightCross = (load: THREE.FileLoader, url: string): Promise<THREE.Grou
         circleMesh.quaternion.setFromUnitVectors(meshPlaneNormal, coordinateVectorNormal) // 根据两组向量计算四元数
 
         // dynamicCircle 动态网格
-        const dynamicCircleMesh = new THREE.Mesh(circleGeometry_dynamicCircle, circleMaterial_dynamicCircle)
+        const dynamicCircleMesh: THREE.Mesh | any = new THREE.Mesh(circleGeometry_dynamicCircle, circleMaterial_dynamicCircle)
         dynamicCircleMesh.name = 'dynamic_circle'
-        dynamicCircleMesh.scale.set(size_dynamicCircle, size_dynamicCircle, size_dynamicCircle)
+        dynamicCircleMesh.scale.set(size_dynamicCircle, size_dynamicCircle, 1)
         dynamicCircleMesh.position.set(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)
+        dynamicCircleMesh.multiple = 2 // 设置动态光圈尺寸的倍数，用于动态光圈动画
         dynamicCircleMesh.quaternion.setFromUnitVectors(meshPlaneNormal, coordinateVectorNormal) // 根据两组向量计算四元数
         dynamicMeshList.value.push(dynamicCircleMesh)
 
@@ -479,16 +480,20 @@ const render = (): void => {
       earth.rotation.y += delta * 0.02 // 地球自旋转
     }
     if (dynamicMeshList.value.length) {
-      // console.log(dynamicMeshList)
-      dynamicMeshList.value.forEach((mesh) => {
-        if (mesh.scale.x >= 100) {
-          mesh.scale.set(50, 50, 1)
-          // mesh.material.opacity = 1
-        } else {
-          // mesh.material.opacity -= 50 / 60 * 1
+      dynamicMeshList.value.forEach((mesh: THREE.Mesh | any, index: number) => {
+        // console.log(mesh)
+        mesh.multiple += 0.01 // 尺寸系数 1 ～ 2之间
+        if (mesh.multiple >= 2) {
+          mesh.multiple = 1
         }
-        mesh.scale.x += 1
-        mesh.scale.y += 1
+        mesh.scale.set(Math.floor(mesh.multiple * size_dynamicCircle), Math.floor(mesh.multiple * size_dynamicCircle), 1)
+        if (mesh.multiple <= 1.5) {
+          mesh.material.opacity = (mesh.multiple - 1) * 2 // (1.5-1.0) * 2，保证透明度在0~1之间变化
+        } else if (mesh.multiple > 1.5 && mesh.multiple <= 2) {
+          mesh.material.opacity = 1 - (mesh.multiple - 1.5) * 2 // 1 - (2.0-1.5) * 2 mesh缩放2倍对应0 缩放1.5被对应1
+        } else {
+          mesh.multiple = 1.0
+        }
       })
     }
     renderer.render(scene, camera)
