@@ -15,10 +15,13 @@ import { onMounted, ref, onUnmounted } from 'vue'
 
 /** 外部依赖 **/
 import * as THREE from 'three'
+import { Float32BufferAttribute } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 
+import { pointInPolygon } from '@/utils/coordinate'
+import Delaunator from 'delaunator' // 计算三角剖面
+
 import { lngLatToXYZ } from '@/utils/coordinate'
-import { Float16BufferAttribute, Float32BufferAttribute, Material, Mesh } from 'three';
 
 /** API **/
 
@@ -40,6 +43,10 @@ const RADIUS: number = 1000 // 地球半径
 let earth: THREE.Group
 let dynamicMeshList = ref<THREE.Mesh[]>([]) // 保存动态圈网格，用来在 帧动画 中做动态效果
 const size_dynamicCircle = RADIUS * 0.05
+
+const bufferGap = 20 // 用来分布点之间的间隔 m
+const lngLatGap = 1 // 经纬度单位的间隔 lnagLat
+let CHINA: number = 0
 
 const canvas = ref()
 
@@ -143,35 +150,17 @@ const initMesh = (): void => {
   earth = new THREE.Group()
   earth.name = 'earth'
 
-  const textureLoad = new THREE.TextureLoader()
-
-  const mapTexture = textureLoad.load('/textures/planet/earth-2048.png')
-  // const normalTexture = textureLoad.load('/textures/planet/earth_normal_2048.jpg')
-
-  const geometry = new THREE.SphereGeometry(RADIUS, 72, 72)
+  // 创建地球球体
+  const segments = RADIUS / bufferGap
+  const geometry = new THREE.SphereGeometry(RADIUS - 0.5, segments, segments)
   const material = new THREE.MeshLambertMaterial({
-    // side: THREE.DoubleSide,
     transparent: true,
-    opacity: 0.9,
-    // color: new THREE.Color().setHex(0x1111ff),
-    map: mapTexture,
-    // normalMap: normalTexture,
+    opacity: 0.95,
+    color: new THREE.Color().setHex(0x000101)
   })
   const sphere = new THREE.Mesh(geometry, material)
   sphere.name = 'earth_sphere'
   earth.add(sphere)
-
-  // 位置测试（经纬度 --> 球面坐标）
-  // const point = new THREE.Mesh(
-  //   new THREE.IcosahedronGeometry(4, 0),
-  //   new THREE.MeshLambertMaterial({
-  //     color: 0xff1155,
-  //     side: THREE.DoubleSide
-  //   })
-  // )
-  // const position = lngLatToXYZ(lngLat, RADIUS)
-  // point.position.set(position.x, position.y, position.z)
-  // scene?.add(point)
 
   initWorld()
 }
@@ -196,12 +185,11 @@ const initWorld = (): void => {
   const lineGroup = new THREE.Group()
   lineGroup.name = 'boundary_country'
 
-  const pointMap = new window.Map<string, number[]>() // 根据国家名称，保存各自国家边界的 Map
+  const lineMap = new window.Map<string, number[]>() // 根据国家名称，保存各自国家边界经纬度的的 Map
 
   const fileLoader = new THREE.FileLoader() // 文件加载器
   fileLoader.setResponseType('json') // 设置响应的数据类型是 json 类型
   fileLoader.load('/json/world.json', (geo: worldData<geoJson> | any) => {
-    // 将每个国家的边界线合并成一一条线
     geo.features.forEach((country: geoJson) => {
       // 统一数据格式
       if (country.geometry.type === 'MultiPolygon') {
@@ -211,35 +199,42 @@ const initWorld = (): void => {
         })
         country.geometry.coordinates = coordinates
       }
-
-      pointMap.set(country.properties.name, []) // 设置一个 key
-      let CHINA = 0
+      lineMap.set(country.properties.name, []) // 将每个国家的 name 设置为 lineMap key 值
       if (country.properties.name === 'China') {
-        CHINA = 5
+        CHINA = 5 // 突出显示 China
+      } else {
+        CHINA = 0
       }
       country.geometry.coordinates.forEach((path) => {
-        const pointsArr: number[] = []
-        path.forEach((item) => {
-          const pointByXYZ = lngLatToXYZ(item as number[], RADIUS + CHINA)
-          pointsArr.push(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)
-        })
-        pointMap.get(country.properties.name)!.push(pointsArr[0], pointsArr[1], pointsArr[2]) // 先存入 第一个点的位置
-        // 将从第二个点开始，复制出一个点的位置，存入
-        for (let index = 3; index < pointsArr.length; index += 3) {
-          pointMap.get(country.properties.name)!.push(
-            pointsArr[index],
-            pointsArr[index + 1],
-            pointsArr[index + 2],
-            pointsArr[index],
-            pointsArr[index + 1],
-            pointsArr[index + 2]
-          )
+        // 绘制线，将每个国家的边界线合并成一个模型
+        const countryLine = (): void => {
+          const pointsArr: number[] = [] // 将经纬度转换成 xyz 坐标
+          path.forEach((item) => {
+            const pointByXYZ = lngLatToXYZ(item as number[], RADIUS + CHINA)
+            pointsArr.push(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)
+          })
+          lineMap.get(country.properties.name)!.push(pointsArr[0], pointsArr[1], pointsArr[2]) // 先存入 第一个点的位置
+          // 将从第二个点开始，复制出一个点的位置，存入
+          for (let index = 3; index < pointsArr.length; index += 3) {
+            lineMap.get(country.properties.name)!.push(
+              pointsArr[index],
+              pointsArr[index + 1],
+              pointsArr[index + 2],
+              pointsArr[index],
+              pointsArr[index + 1],
+              pointsArr[index + 2]
+            )
+          }
+          lineMap.get(country.properties.name)!.push(pointsArr[0], pointsArr[1], pointsArr[2]) // 最后再存入第一个点的位置，使边界闭合
         }
-        pointMap.get(country.properties.name)!.push(pointsArr[0], pointsArr[1], pointsArr[2]) // 最后再存入第一个点的位置，使边界闭合
+        countryLine()
+
+        // 绘制国家区域面
+        drawCountryFace(path as number[][])
       })
     })
-    // console.log(pointMap)
-    pointMap.forEach((value, key) => {
+
+    lineMap.forEach((value, key) => {
       const countryBorder = drawCountryBoundary(value, key)
       countryBorder.name = key
       lineGroup.add(countryBorder)
@@ -247,10 +242,10 @@ const initWorld = (): void => {
     earth.add(lineGroup)
 
     // 海量点
-    initPoints(fileLoader, '/json/airports.json').then((point) => {
-      point.name = 'airport_point'
-      earth.add(point)
-    })
+    // initPoints(fileLoader, '/json/airports.json').then((point) => {
+    //   point.name = 'airport_point'
+    //   earth.add(point)
+    // })
 
     // 球面标注，光柱
     initLightCross(fileLoader, '/json/HotNewsData.json').then((news) => {
@@ -259,11 +254,96 @@ const initWorld = (): void => {
     })
 
     const sprite = initSprite('/sprite/halo.png') // 精灵图
+    sprite.name = 'earth_halo_sprite'
     earth.add(sprite)
 
     scene?.add(earth)
     // console.log(scene?.children)
   })
+}
+
+// initWorld 的子方法，绘制国家区域面
+const drawCountryFace = (path: number[][]) => {
+  const rectangleAreaLngLat: THREE.Vector2[] = [] // 计算的矩形范围的经纬度集合
+  const inBoundaryLngLat: number[][] = [] // 计算的在边界线范围内的经纬度集合
+  const vectorspoint: number[][] = [] // 有效的三角剖面的经纬度点集合
+  const pathByVectoe2 = path.map((point) => {
+    return new THREE.Vector2(point[0], point[1])
+  })
+  const box2 = new THREE.Box2().setFromPoints(pathByVectoe2) // 计算边界点的盒模型
+  const max = box2.max // 最大值
+  const min = box2.min // 最小值
+  const lngCount = Math.ceil((max.x - min.x) / lngLatGap) // 经度上的分割点数
+  const latCount = Math.ceil((max.y - min.y) / lngLatGap) // 纬度上的分割点数
+  for (let lng = 0; lng <= lngCount; lng++) {
+    for (let lat = 0; lat <= latCount; lat++) {
+      rectangleAreaLngLat.push(new THREE.Vector2(min.x + lng * lngLatGap, min.y + lat * lngLatGap))
+    }
+  }
+  rectangleAreaLngLat.forEach((point) => {
+    const result = pointInPolygon([point.x, point.y], path)
+    if (result) {
+      inBoundaryLngLat.push([point.x, point.y])
+    }
+  })
+  // if (!inBoundaryLngLat.length) {
+  //   inBoundaryLngLat.push()
+  // }
+
+  // 利用在区域边界线之内的经纬度点集合计算出绘制 mesh 所需要的三角剖面的点位
+  const allLngLat = [...inBoundaryLngLat, ...path] // 包括边界范围的经纬度集合 和 在边界范围内的点阵经纬度集合
+  const indexArr = Delaunator.from(allLngLat).triangles // 组成三角剖面所需点的索引
+  // 三角剖分获得的三角形索引indexArr需要进行二次处理，删除多边形polygon轮廓外面的三角形对应索引
+  for (let index = 0; index < indexArr.length; index += 3) {
+    const point_1 = allLngLat[indexArr[index]]
+    const point_2 = allLngLat[indexArr[index + 1]]
+    const point_3 = allLngLat[indexArr[index + 2]]
+
+    // 三角形重心坐标计算，重心在 边界范围内，代表这个三角形是有效的
+    const triangleCenter = [(point_1[0] + point_2[0] + point_3[0]) / 3, (point_1[1] + point_2[1] + point_3[1]) / 3]
+    const result = pointInPolygon(triangleCenter, path)
+    if (result) {
+      vectorspoint.push(point_1, point_2, point_3)
+    }
+  }
+  const pointsArr: number[] = [] // 将经纬度转换成 xyz 坐标
+  vectorspoint.forEach((item) => {
+    const pointByXYZ = lngLatToXYZ(item as number[], RADIUS + CHINA - 0.2)
+    pointsArr.push(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)
+  })
+  const geometry = new THREE.BufferGeometry()
+  const vectors = new Float32Array(pointsArr)
+  geometry.setAttribute('position', new THREE.BufferAttribute(vectors, 3))
+  const material = new THREE.MeshBasicMaterial({
+    color: 0x002018,
+    side: THREE.DoubleSide
+  })
+  const mesh = new THREE.Mesh(geometry, material)
+  earth?.add(mesh)
+}
+
+// 经纬度坐标进行排序
+function minMax(arr: number[]) {
+  // 数组元素排序
+  arr.sort((pre, next) => {
+    return pre - next
+  });
+  // 通过向两侧取整，把经纬度的方位稍微扩大
+  return [Math.floor(arr[0]), Math.ceil(arr[arr.length - 1])]
+}
+
+const MathCeil = (vector: THREE.Vector2): THREE.Vector2 => {
+  let x: number
+  let y: number
+  x = Math.ceil(Math.abs(vector.x))
+  y = Math.ceil(Math.abs(vector.y))
+  if (vector.x < 0) {
+    x = -x
+  }
+  if (vector.y < 0) {
+    y = -y
+  }
+  return new THREE.Vector2(x, y)
 }
 
 // 改良，将每个国家的边界线合并成一条
@@ -280,28 +360,28 @@ const drawCountryBoundary = (points: number[], key: string): THREE.LineSegments 
   return line
 }
 
-// 传递一组经纬度，绘制线
-const drawLine = (path: number[][], isLoop: boolean = true) => {
-  const pointsByXYZ: number[] = []
-  // 转换成球面坐标
-  path.forEach((item) => {
-    const pointByXYZ = lngLatToXYZ(item, RADIUS)
-    pointsByXYZ.push(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)
-  })
-  const buffer = new THREE.BufferGeometry()
-  buffer.setAttribute('position', new Float32BufferAttribute(pointsByXYZ, 3))
-  // 绘制线的材质 LineBasicMaterial
-  const material = new THREE.LineBasicMaterial({
-    color: 0x00aaaa, // 线条颜色
-  })
-  let line: THREE.LineLoop | THREE.Line
-  if (isLoop) {
-    line = new THREE.LineLoop(buffer, material)
-  } else {
-    line = new THREE.Line(buffer, material)
-  }
-  return line
-}
+// // 传递一组经纬度，绘制线
+// const drawLine = (path: number[][], isLoop: boolean = true) => {
+//   const pointsByXYZ: number[] = []
+//   // 转换成球面坐标
+//   path.forEach((item) => {
+//     const pointByXYZ = lngLatToXYZ(item, RADIUS)
+//     pointsByXYZ.push(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)
+//   })
+//   const buffer = new THREE.BufferGeometry()
+//   buffer.setAttribute('position', new Float32BufferAttribute(pointsByXYZ, 3))
+//   // 绘制线的材质 LineBasicMaterial
+//   const material = new THREE.LineBasicMaterial({
+//     color: 0x00aaaa, // 线条颜色
+//   })
+//   let line: THREE.LineLoop | THREE.Line
+//   if (isLoop) {
+//     line = new THREE.LineLoop(buffer, material)
+//   } else {
+//     line = new THREE.Line(buffer, material)
+//   }
+//   return line
+// }
 
 // 加载 机场位置 海量点
 interface airportJson {
