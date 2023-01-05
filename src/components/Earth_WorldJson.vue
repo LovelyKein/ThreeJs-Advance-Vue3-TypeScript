@@ -22,6 +22,7 @@ import { pointInPolygon } from '@/utils/coordinate'
 import Delaunator from 'delaunator' // 计算三角剖面
 
 import { lngLatToXYZ } from '@/utils/coordinate'
+import { getTriangleInnerCircle } from '@/utils/math'
 
 /** API **/
 
@@ -68,6 +69,7 @@ onMounted((): void => {
   initMesh()
   render()
   resize()
+  console.log(getTriangleInnerCircle([0, 0], [100, 0], [50, 50]))
 })
 
 onUnmounted(() => {

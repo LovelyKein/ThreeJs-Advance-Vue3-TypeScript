@@ -142,6 +142,7 @@ const getTexturesFromAtlasFile = (imgUrl: string, tilesCount: number): THREE.Tex
       context = canvas.getContext('2d')
       canvas.height = tileWidth
       canvas.width = tileWidth
+      // drawImage(图片或视频资源, 图片的x坐标开始剪切, 图片的y坐标开始剪切, 被剪切图像的宽度，被剪切图像的高度, 图像放置的x坐标, 图像放置的y坐标, 图像宽度, 图像高度)
       context?.drawImage(image, tileWidth * index, 0, tileWidth, tileWidth, 0, 0, tileWidth, tileWidth)
       textures[index].image = canvas
       textures[index].needsUpdate = true
