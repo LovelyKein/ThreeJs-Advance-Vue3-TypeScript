@@ -16,9 +16,10 @@ import { onMounted, ref, onUnmounted } from 'vue'
 /** 外部依赖 **/
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+import { Float32BufferAttribute } from 'three'
 
 import { lngLatToXYZ } from '@/utils/coordinate'
-import { Float16BufferAttribute, Float32BufferAttribute, Material, Mesh } from 'three';
+import { getTriangleInnerCircle } from '@/utils/math'
 
 /** API **/
 
@@ -61,6 +62,7 @@ onMounted((): void => {
   initMesh()
   render()
   resize()
+  console.log(getTriangleInnerCircle([0, 0], [100, 0], [50, 50]))
 })
 
 onUnmounted(() => {
