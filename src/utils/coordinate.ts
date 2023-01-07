@@ -28,10 +28,17 @@ export function lngLatToXYZ(
   const z = radius * Math.cos(lat) * Math.sin(threeLng);
   // 返回球面坐标
   return {
-    x: x,
-    y: y,
-    z: z,
+    x,
+    y,
+    z
   };
+  // const phi = ((90 - lngLat[1]) * Math.PI) / 180
+  // const theta = ((90 - lngLat[0]) * Math.PI) / 180
+  // return {
+  //   x: radius * Math.sin(phi) * Math.cos(theta), // x
+  //   y: radius * Math.cos(phi), // y
+  //   z: radius * Math.sin(phi) * Math.sin(theta), // z
+  // }
 }
 
 // point-in-polygon库(判断点是否在多边形内)

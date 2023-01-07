@@ -9,9 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@turf/turf": "^6.5.0",
     "delaunator": "^5.0.0",
     "point-in-polygon": "^1.1.0",
     "three": "^0.147.0",
+    "three-conic-polygon-geometry": "^1.5.4",
     "vue": "^3.2.41",
     "vue-router": "^4.1.6"
   },
