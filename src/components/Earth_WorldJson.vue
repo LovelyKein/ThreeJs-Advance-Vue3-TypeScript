@@ -15,7 +15,7 @@ import { onMounted, ref, onUnmounted } from 'vue'
 
 /** 外部依赖 **/
 import * as THREE from 'three'
-import { Float32BufferAttribute } from 'three'
+import { BufferAttribute, Float32BufferAttribute } from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils'
 
@@ -58,6 +58,10 @@ interface airportJson {
   latitude_deg: string
 }
 
+interface population {
+  population: number[][]
+}
+
 /** 属性 **/
 
 /** data **/
@@ -91,7 +95,7 @@ onMounted((): void => {
   initRenderer()
   initCamera()
   initScene()
-  // initAxesHelper()
+  initAxesHelper()
   // initLight()
   initControls()
   initClock()
@@ -214,22 +218,31 @@ const initEarth = (): void => {
   // })
 
   // 球面标注，光柱
-  initMark(fileLoader, '/json/HotNewsData.json').then((news) => {
-    news.name = 'news'
-    earth.add(news)
-  }, (reason) => {
-    dynamicMeshList.value = []
-    console.error(reason)
+  // initMark(fileLoader, '/json/HotNewsData.json').then((news) => {
+  //   news.name = 'news'
+  //   earth.add(news)
+  // }, (reason) => {
+  //   dynamicMeshList.value = []
+  //   console.error(reason)
+  // })
+
+  // 人口密度 柱状体 可视化
+  initPopulation(fileLoader, '/json/population.json').then((pillar) => {
+    pillar.name = 'population_density'
+    earth.add(pillar)
   })
 
-  const sprite = initSprite('/sprite/halo.png') // 精灵图
-  sprite.name = 'earth_halo_sprite'
-  earth.add(sprite)
+  // 精灵图
+  initSprite('/sprite/halo.png').then((sprite) => {
+    sprite.name = 'earth_halo_sprite'
+    earth.add(sprite)
+  }) // 精灵图
 }
 
 const initCountry = (load: THREE.FileLoader, url: string): Promise<THREE.Group> => {
   return new Promise((resolve) => {
-    load.load(url, (geo: worldData<geoJson> | any) => {
+    load.load(url, (res: unknown) => {
+      const geo = res as worldData<geoJson>
       // 国家边界线和区域面
       const boundaryGroup = new THREE.Group()
 
@@ -418,7 +431,8 @@ const drawCountryFace = (boundaryList: number[][][][], key: string): THREE.Mesh 
 // 加载 机场位置 海量点
 const initPoints = (load: THREE.FileLoader, url: string): Promise<THREE.Points> => {
   return new Promise((resolve) => {
-    load.load(url, (json: airportJson[] | any) => {
+    load.load(url, (res: unknown) => {
+      const json = res as airportJson[]
       const points: number[] = []
       const colors: number[] = []
 
@@ -432,7 +446,7 @@ const initPoints = (load: THREE.FileLoader, url: string): Promise<THREE.Points> 
           points.push(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)
 
           // color
-          const percent = Number((index / json.length).toFixed(2))
+          const percent = Number((index / json.length).toFixed(1))
           const color = color_1.clone().lerp(color_2, percent)
           colors.push(color.r, color.g, color.b)
         }
@@ -455,7 +469,7 @@ const initPoints = (load: THREE.FileLoader, url: string): Promise<THREE.Points> 
 // 球面标注绘制（光柱效果）
 const initMark = (load: THREE.FileLoader, url: string): Promise<THREE.Group> => {
   return new Promise((resolve, reject) => {
-    load.load(url, (buffer: any) => {
+    load.load(url, (buffer: unknown) => {
       const json = buffer as newsJson[]
       const news = new THREE.Group()
       news.name = 'news'
@@ -471,7 +485,7 @@ const initMark = (load: THREE.FileLoader, url: string): Promise<THREE.Group> => 
       const circleGeometry = new THREE.PlaneGeometry(size, size) // 此时平面处于 XOY 平面
       // 动态光圈 网格
       const circleGeometry_dynamicCircle = new THREE.PlaneGeometry(size_dynamicCircle, size_dynamicCircle) // 此时平面处于 XOY 平面
-      // 标注光柱
+      // 光柱
       const height = RADIUS * 0.15
       const width = RADIUS * 0.02
       const lightGeometry = new THREE.PlaneGeometry(width, height); // 此时平面处于 XOY 平面
@@ -512,7 +526,7 @@ const initMark = (load: THREE.FileLoader, url: string): Promise<THREE.Group> => 
         const dynamicCircleMesh: THREE.Mesh | any = new THREE.Mesh(circleGeometry_dynamicCircle, circleMaterial_dynamicCircle)
         dynamicCircleMesh.name = 'dynamic_circle'
         dynamicCircleMesh.position.set(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)
-        dynamicCircleMesh.multiple = 2 // 设置动态光圈尺寸的倍数，用于动态光圈动画
+        dynamicCircleMesh.multiple = Math.random() + 1 // 设置动态光圈尺寸的倍数，用于动态光圈动画 1~2
         dynamicCircleMesh.quaternion.setFromUnitVectors(meshPlaneNormal, coordinateVectorNormal) // 根据两组向量计算四元数
         dynamicMeshList.value.push(dynamicCircleMesh)
 
@@ -553,26 +567,88 @@ const initMark = (load: THREE.FileLoader, url: string): Promise<THREE.Group> => 
         news.add(markItem)
       })
       resolve(news)
-    },() => {}, (error) => {
+    }, () => { }, (error) => {
       reject(error)
     })
   })
 }
 
-// 加载 精灵图 Sprite
-const initSprite = (url: string): THREE.Sprite => {
-  const textureLoader = new THREE.TextureLoader()
-  const spriteTexture = textureLoader.load(url) // 加载 精灵图 纹理贴图
-  // 创建 精灵图 材质
-  const material = new THREE.SpriteMaterial({
-    map: spriteTexture,
-    transparent: true, // 开启透明
-    opacity: 0.8
+// 球面标注柱状体人口密度可视化
+const initPopulation = (load: THREE.FileLoader, url: string): Promise<THREE.Mesh> => {
+  return new Promise((resolve) => {
+    load.load(url, (res: unknown) => {
+      const data: population = res as population
+
+      const pillarArr: THREE.BoxGeometry[] = []
+
+      const color_1 = new THREE.Color(0x00aa88)
+      const color_2 = new THREE.Color(0x00ff88) //最大数值对应柱子颜色
+
+      const densityArr = data.population.map((item) => {
+        return item[2]
+      })
+      const maxDensity = minMax(densityArr)[1] * 0.5 // 计算对比系数，可以调整，以可视化效果最佳为准
+      console.log(maxDensity)
+
+      data.population.forEach((item) => {
+        const density = item[2]
+        const height = density / 10 // z 向长度
+        if (height > 1) {
+          const colorArr: number[] = []
+          const geometry = new THREE.BoxGeometry(4, 4, height)
+          const lerpColor = color_1.clone().lerp(color_2.clone(), density / maxDensity) // 根据 人口密度值 混合颜色
+
+          // 顶点颜色
+          const position = geometry.getAttribute('position')
+          for (let index = 0; index < position.count; index++) {
+            // z 轴分段数为 1， 所以只有顶部、底部两圈点
+            const axisZ = position.getZ(index)
+            // const ratio = (axisZ - RADIUS) / height // 此为转换 z 轴之后的算法
+            // colorArr.push(lerpColor.r, lerpColor.g * ratio, lerpColor.b * ratio)
+            if (axisZ < 0) {
+              colorArr.push(lerpColor.r, lerpColor.g * 0, lerpColor.b * 0)
+            } else {
+              colorArr.push(lerpColor.r, lerpColor.g * 1, lerpColor.b * 1)
+            }
+          }
+
+          geometry.translate(0, 0, RADIUS + height / 2 + 1) // 延 z 轴移动，此时 z 最小为 1
+          geometry.setAttribute('color', new BufferAttribute(new Float32Array(colorArr), 3))
+
+          const pointByXYZ = lngLatToXYZ([item[0], item[1]], RADIUS)
+          geometry.lookAt(new THREE.Vector3(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)) // 将模型的轴向看向 目标点
+          pillarArr.push(geometry)
+        }
+      })
+      const mergePillarGeometry = mergeBufferGeometries(pillarArr)
+      const material = new THREE.MeshBasicMaterial({
+        // color: 0x00ffff,
+        vertexColors: true // 开启顶点颜色
+      })
+      const pillarMesh = new THREE.Mesh(mergePillarGeometry, material)
+
+      resolve(pillarMesh)
+    })
   })
-  // 创建 精灵图 模型
-  const sprite = new THREE.Sprite(material)
-  sprite.scale.set(RADIUS * 3, RADIUS * 3, 1) // 缩放 精灵图 以匹配地球模型
-  return sprite
+}
+
+// 加载 精灵图 Sprite
+const initSprite = (url: string): Promise<THREE.Sprite> => {
+  return new Promise((resolve) => {
+    const textureLoader = new THREE.TextureLoader()
+    textureLoader.load(url, (texture) => {
+      // 创建 精灵图 材质
+      const material = new THREE.SpriteMaterial({
+        map: texture,
+        transparent: true, // 开启透明
+        opacity: 0.8
+      })
+      // 创建 精灵图 模型
+      const sprite = new THREE.Sprite(material)
+      sprite.scale.set(RADIUS * 3, RADIUS * 3, 1) // 缩放 精灵图 以匹配地球模型
+      resolve(sprite)
+    })
+  })
 }
 
 const resize = (): void => {
@@ -590,9 +666,9 @@ const resize = (): void => {
 const render = (): void => {
   if (scene && camera && renderer) {
     const delta = clock.getDelta()
-    if (earth) {
-      earth.rotation.y += delta * 0.02 // 地球自旋转
-    }
+    // if (earth) {
+    //   earth.rotation.y += delta * 0.02 // 地球自旋转
+    // }
     if (dynamicMeshList.value.length) {
       dynamicMeshList.value.forEach((mesh: THREE.Mesh | any) => {
         // console.log(mesh)
@@ -605,8 +681,6 @@ const render = (): void => {
           mesh.material.opacity = (mesh.multiple - 1) * 2 // (1.5-1.0) * 2，保证透明度在0~1之间变化
         } else if (mesh.multiple > 1.5 && mesh.multiple <= 2) {
           mesh.material.opacity = 1 - (mesh.multiple - 1.5) * 2 // 1 - (2.0-1.5) * 2 mesh缩放2倍对应0 缩放1.5被对应1
-        } else {
-          mesh.multiple = 1.0
         }
       })
     }
@@ -618,15 +692,15 @@ const render = (): void => {
   window.requestAnimationFrame(render)
 }
 
-// // 经纬度坐标进行排序
-// function minMax(arr: number[]) {
-//   // 数组元素排序
-//   arr.sort((pre, next) => {
-//     return pre - next
-//   });
-//   // 通过向两侧取整，把经纬度的方位稍微扩大
-//   return [Math.floor(arr[0]), Math.ceil(arr[arr.length - 1])]
-// }
+// 大小排序
+function minMax(arr: number[]) {
+  // 数组元素排序
+  arr.sort((pre, next) => {
+    return pre - next
+  });
+  // 通过向两侧取整，把经纬度的方位稍微扩大
+  return [arr[0], arr[arr.length - 1]]
+}
 
 // // 传递一组经纬度，绘制线
 // const drawLine = (path: number[][], color: number | string | THREE.Color) => {

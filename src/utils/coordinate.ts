@@ -13,7 +13,7 @@ export function lngLatToXYZ(
     console.error("转换错误，未传递地球半径");
     return { x: 0, y: 0, z: 0 };
   }
-  if (!lngLat[0] || !lngLat[1]) {
+  if (lngLat.length !== 2) {
     console.error("转换错误，经纬度错误");
     return { x: 0, y: 0, z: 0 };
   }
