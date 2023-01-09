@@ -270,8 +270,8 @@ const initCountry = (load: THREE.FileLoader, url: string): Promise<THREE.Group> 
         countryGroup.add(lineMesh)
 
         // 国家区域面模型
-        const areaMesh = drawCountryFace(polygons, country.properties.name)
-        countryGroup.add(areaMesh)
+        // const areaMesh = drawCountryFace(polygons, country.properties.name)
+        // countryGroup.add(areaMesh)
 
         boundaryGroup.add(countryGroup)
 
@@ -581,14 +581,13 @@ const initPopulation = (load: THREE.FileLoader, url: string): Promise<THREE.Mesh
 
       const pillarArr: THREE.BoxGeometry[] = []
 
-      const color_1 = new THREE.Color(0x00aa88)
-      const color_2 = new THREE.Color(0x00ff88) //最大数值对应柱子颜色
+      const color_1 = new THREE.Color(0x0099ff)
+      const color_2 = new THREE.Color(0x00ff99) // 最大数值对应柱子颜色
 
       const densityArr = data.population.map((item) => {
         return item[2]
       })
       const maxDensity = minMax(densityArr)[1] * 0.5 // 计算对比系数，可以调整，以可视化效果最佳为准
-      console.log(maxDensity)
 
       data.population.forEach((item) => {
         const density = item[2]
@@ -666,9 +665,9 @@ const resize = (): void => {
 const render = (): void => {
   if (scene && camera && renderer) {
     const delta = clock.getDelta()
-    // if (earth) {
-    //   earth.rotation.y += delta * 0.02 // 地球自旋转
-    // }
+    if (earth) {
+      earth.rotation.y += delta * 0.02 // 地球自旋转
+    }
     if (dynamicMeshList.value.length) {
       dynamicMeshList.value.forEach((mesh: THREE.Mesh | any) => {
         // console.log(mesh)
