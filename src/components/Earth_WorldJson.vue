@@ -96,6 +96,7 @@ let tadpolePointAndIndexList: {
   smoothPointsLength: number,
   sliceLength: number
 }[] = [] // 保存动态的蝌蚪线的截取点和索引
+const length = 10 // 由几个点构成蝌蚪线
 
 const canvas = ref()
 
@@ -701,7 +702,6 @@ const initFlyLine = (load: THREE.FileLoader, url: string): Promise<THREE.Group> 
     const color_2 = new THREE.Color(0x3399bb) // 终点颜色
     // 截取一段作为 蝌蚪线
     const particleSize = RADIUS * 0.012 // 粒子尺寸
-    const length = 5 // 由几个点构成蝌蚪线
     const tadpoleColors: number[] = []
     const tadpoleSizes: number[] = []
     const startIndex = Math.floor(Math.random() * (flyLinePoints.length - length)) // 随机起点位置
@@ -780,7 +780,7 @@ const initFlyLine = (load: THREE.FileLoader, url: string): Promise<THREE.Group> 
     const colors: number[] = [] // 顶点颜色数组
     const color_1 = new THREE.Color(0xeeee33) // 起点颜色
     const color_2 = new THREE.Color(0x3399bb) // 终点颜色
-    const segmentPoins: THREE.Vector2[] = arcLine.getPoints(52) // 返回 arcLine 中 52 个顶点坐标
+    const segmentPoins: THREE.Vector2[] = arcLine.getPoints(120) // 返回 arcLine 中 121 个顶点坐标
     segmentPoins.forEach((_, index) => {
       if (index >= 10) {
         const lerpColor = color_1.clone().lerp(color_2.clone(), index / segmentPoins.length)
@@ -799,12 +799,13 @@ const initFlyLine = (load: THREE.FileLoader, url: string): Promise<THREE.Group> 
     // 绘制蝌蚪线
     const tadpole = drawTadpoleLine(segmentPoins, 100)
     line.add(tadpole.mesh) // 将蝌蚪线作为 飞线 的子集，应用 求反四元数转换的效果
+
     tadpolePointAndIndexList.push({
       geometry: tadpole.geometry,
       points: segmentPoins,
       index: tadpole.index,
       smoothPointsLength: 100,
-      sliceLength: 5
+      sliceLength: tadpole.sliceLength
     })
 
     line.quaternion.multiply(inverseQuaternion) // 应用组合后的 求反四元数
