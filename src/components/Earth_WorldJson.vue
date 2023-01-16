@@ -97,6 +97,8 @@ let tadpolePointAndIndexList: {
   sliceLength: number
 }[] = [] // 保存动态的蝌蚪线的截取点和索引
 const length = 10 // 由几个点构成蝌蚪线
+let cone: THREE.Group // 三棱锥
+let cone_direction: THREE.Vector3 = new THREE.Vector3() // 三棱锥的旋转轴向
 
 const canvas = ref()
 
@@ -471,7 +473,7 @@ const initPoints = (load: THREE.FileLoader, url: string): Promise<THREE.Points> 
 
           // color
           const percent = Number((index / json.length).toFixed(1))
-          const color = color_1.clone().lerp(color_2, percent)
+          const color = color_1.clone().lerp(color_2.clone(), percent)
           colors.push(color.r, color.g, color.b)
         }
       })
@@ -480,7 +482,7 @@ const initPoints = (load: THREE.FileLoader, url: string): Promise<THREE.Points> 
       buffer.setAttribute('color', new Float32BufferAttribute(colors, 3)) // color
       const material = new THREE.PointsMaterial({
         size: 2,
-        color: 0xffff00,
+        // color: 0xffff00,
         sizeAttenuation: true,
         vertexColors: true // 开启顶点颜色
       })
@@ -813,6 +815,56 @@ const initFlyLine = (load: THREE.FileLoader, url: string): Promise<THREE.Group> 
     return line
   }
 
+  // 绘制三棱锥
+  const drawCone = (position: THREE.Vector3): THREE.Group => {
+    cone_direction = position.clone().normalize() // 单位方向向量
+    const color_1 = new THREE.Color(0xff8822)
+    const color_2 = new THREE.Color(0xeeee33)
+    const colors: number[] = [] // 顶点颜色数组
+
+    const coneGroup = new THREE.Group()
+    coneGroup.name = 'startPosition_cone'
+
+    const coneSize = RADIUS * 0.02
+    const coneHeight_top = RADIUS * 0.05
+    const coneHeight_bottom = RADIUS * 0.07
+    const geometry_top = new THREE.ConeGeometry(coneSize, coneHeight_top, 3)
+    const geometry_bottom = new THREE.ConeGeometry(coneSize, coneHeight_bottom, 3)
+    
+    // 顶点颜色
+    const vertexPosition = geometry_top.getAttribute('position')
+    for (let index = 0; index < vertexPosition.count; index++) {
+      if (vertexPosition.getY(index) > 0) {
+        colors.push(color_1.r, color_1.g, color_1.b)
+      } else {
+        colors.push(color_2.r, color_2.g, color_2.b)
+      }
+    }
+    geometry_top.setAttribute('color', new Float32BufferAttribute(colors, 3))
+    geometry_bottom.setAttribute('color', new Float32BufferAttribute(colors, 3))
+
+    const material = new THREE.MeshBasicMaterial({
+      vertexColors: true
+    })
+    geometry_top.rotateX(Math.PI / 2)
+    geometry_top.translate(0, 0, coneHeight_top / 2 + coneHeight_bottom)
+
+    geometry_bottom.rotateX(-Math.PI / 2)
+    geometry_bottom.translate(0, 0, coneHeight_bottom / 2)
+    geometry_bottom.rotateZ(Math.PI / 3)
+
+    const coneMesh_top = new THREE.Mesh(geometry_top, material)
+    const coneMesh_bottom = new THREE.Mesh(geometry_bottom, material)
+
+    coneGroup.add(coneMesh_top)
+    coneGroup.add(coneMesh_bottom)
+
+    coneGroup.position.set(position.x, position.y, position.z)
+    coneGroup.lookAt(cone_direction)
+
+    return coneGroup
+  }
+
   return new Promise((resolve) => {
     load.load(url, (buffer: unknown) => {
       const json = buffer as newsJson[]
@@ -824,10 +876,15 @@ const initFlyLine = (load: THREE.FileLoader, url: string): Promise<THREE.Group> 
       json.forEach((item) => {
         if (item.name === '中国') {
           start = item
+          // 绘制起点的三棱锥
+          const start_XYZ = lngLatToXYZ([start.E, start.N], RADIUS * (1.12 + 0.02))
+          cone = drawCone(new THREE.Vector3(start_XYZ.x, start_XYZ.y, start_XYZ.z))
+          flyLineGroup.add(cone)
         } else {
           endList.push(item)
         }
       })
+
       // 循环遍历，起点相同
       endList.forEach((item) => {
         const startPosition = [start?.E, start?.N] as number[] //起点
@@ -875,9 +932,9 @@ const resize = (): void => {
 const render = (): void => {
   if (scene && camera && renderer) {
     const delta = clock.getDelta()
-    // if (earth) {
-    //   earth.rotation.y += delta * 0.02 // 地球自旋转
-    // }
+    if (earth) {
+      earth.rotation.y += delta * 0.02 // 地球自旋转
+    }
 
     // 光圈动态改变缩放和透明度
     if (dynamicMeshList.value.length) {
@@ -912,8 +969,13 @@ const render = (): void => {
         const tadpoleCurve = new THREE.CatmullRomCurve3(slicePoints3)
         const smoothPoints = tadpoleCurve.getPoints(item.smoothPointsLength)
         item.geometry.setFromPoints(smoothPoints)
-        // geometry.attributes.position.needsUpdate = true
       })
+    }
+
+    // 三棱锥旋转
+    if (cone && cone_direction) {
+      // cone.rotateOnAxis(cone_direction, 0.01)
+      cone.rotateOnWorldAxis(cone_direction, 0.02)
     }
     renderer.render(scene, camera)
   }
