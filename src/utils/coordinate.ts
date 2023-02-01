@@ -1,6 +1,10 @@
 // 关于经纬度、坐标系转换的工具库
 
 // 经纬度 --> 球面坐标(x, y, z)
+/**
+ * @param {经纬度} lngLat
+ * @param {球半径} radius
+ **/
 export function lngLatToXYZ(
   lngLat: number[],
   radius: number
@@ -30,7 +34,7 @@ export function lngLatToXYZ(
   return {
     x,
     y,
-    z
+    z,
   };
   // const phi = ((90 - lngLat[1]) * Math.PI) / 180
   // const theta = ((90 - lngLat[0]) * Math.PI) / 180
@@ -41,20 +45,45 @@ export function lngLatToXYZ(
   // }
 }
 
+// 经纬度 --> 墨卡托坐标
+/**
+ * @param {经纬度} lngLat
+ **/
+const earthRadius = 6371393 // 地球半径 m
+const halfPerimeter = Math.PI * earthRadius // 2 * r * PI
+export function lngLatToMercator(lngLat: number[]): {
+  x: number;
+  y: number;
+} {
+  const E = lngLat[0]
+  const N = lngLat[1]
+  const x = (E * halfPerimeter) / 180
+  const yLog = Math.log(Math.tan(((90 + N) * Math.PI) / 360)) / (Math.PI / 180)
+  const y = (yLog * halfPerimeter) / 180
+  return {
+    x, // 墨卡托x坐标——对应经度
+    y, // 墨卡托y坐标——对应纬度
+  };
+}
+
 // point-in-polygon库(判断点是否在多边形内)
 // github地址：https://github.com/substack/point-in-polygon
-export function pointInPolygon(point: number[], vs: number[][]) {
-  var x = point[0],
-    y = point[1];
-  var inside = false;
-  for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
-    var xi = vs[i][0],
-      yi = vs[i][1];
-    var xj = vs[j][0],
-      yj = vs[j][1];
-    var intersect =
+/**
+ * @param {二维坐标} point
+ * @param {多边形二维坐标集合} polygon
+ **/
+export function pointInPolygon(point: number[], polygon: number[][]) {
+  const x = point[0];
+  const y = point[1];
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0],
+      yi = polygon[i][1];
+    const xj = polygon[j][0],
+      yj = polygon[j][1];
+    const intersect =
       yi > y != yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
     if (intersect) inside = !inside;
   }
-  return inside;
-};
+  return inside
+}

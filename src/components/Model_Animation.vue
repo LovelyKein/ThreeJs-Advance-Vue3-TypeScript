@@ -169,7 +169,7 @@ const initLoader = (): void => {
 }
 
 const loadModel = (loader: GLTFLoader, url: string): void => {
-  loader.load('/models/Soldier.glb', (gltf) => {
+  loader.load(url, (gltf) => {
     gltf_scene = gltf.scene // 模型场景
     gltf_scene.quaternion.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI) // 利用 四元数 更改模型的方向
     // 开启模型的阴影投射

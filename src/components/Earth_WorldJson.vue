@@ -70,6 +70,13 @@ interface transform {
   start_O_end_angle: number
 }
 
+interface tadpoleLine {
+  mesh: THREE.Points,
+  geometry: THREE.BufferGeometry,
+  index: number,
+  sliceLength: number
+}
+
 /** 属性 **/
 
 /** data **/
@@ -201,9 +208,9 @@ const initClock = (): void => {
 const initMesh = (): void => {
   earth = new THREE.Group()
   earth.name = 'earth'
+  scene?.add(earth)
 
   initEarth()
-  scene?.add(earth)
 }
 
 // 初始化地球
@@ -250,10 +257,10 @@ const initEarth = (): void => {
   })
 
   // 人口密度 柱状体 可视化
-  // initPopulation(fileLoader, '/json/population.json').then((pillar) => {
-  //   pillar.name = 'population_density'
-  //   earth.add(pillar)
-  // })
+  initPopulation(fileLoader, '/json/population.json').then((pillar) => {
+    pillar.name = 'population_density'
+    earth.add(pillar)
+  })
 
   // 精灵图
   initSprite('/sprite/halo.png').then((sprite) => {
@@ -694,16 +701,11 @@ const initFlyLine = (load: THREE.FileLoader, url: string): Promise<THREE.Group> 
   }
 
   // 绘制蝌蚪线
-  const drawTadpoleLine = (flyLinePoints: THREE.Vector2[], smoothLength: number): {
-    mesh: THREE.Points,
-    geometry: THREE.BufferGeometry,
-    index: number,
-    sliceLength: number
-  } => {
+  const drawTadpoleLine = (flyLinePoints: THREE.Vector2[], smoothLength: number): tadpoleLine => {
     const color_1 = new THREE.Color(0xeeee33) // 起点颜色
     const color_2 = new THREE.Color(0x3399bb) // 终点颜色
     // 截取一段作为 蝌蚪线
-    const particleSize = RADIUS * 0.012 // 粒子尺寸
+    const particleSize = RADIUS * 0.01 // 粒子尺寸
     const tadpoleColors: number[] = []
     const tadpoleSizes: number[] = []
     const startIndex = Math.floor(Math.random() * (flyLinePoints.length - length)) // 随机起点位置
@@ -955,7 +957,7 @@ const render = (): void => {
 
     // 蝌蚪线飞行效果
     if (tadpolePointAndIndexList.length) {
-      // 此处 item 不能进行结构，否则没有效果
+      // 此处 item 不能进行解构，否则没有效果
       tadpolePointAndIndexList.forEach((item) => {
         if (item.index >= item.points.length - item.sliceLength) {
           item.index = 0
@@ -985,24 +987,6 @@ const render = (): void => {
   window.requestAnimationFrame(render)
 }
 
-// // 传递一组经纬度，绘制线
-// const drawLine = (path: number[][], color: number | string | THREE.Color) => {
-//   const pointsByXYZ: number[] = []
-//   // 转换成球面坐标
-//   path.forEach((item) => {
-//     const pointByXYZ = lngLatToXYZ(item, RADIUS)
-//     pointsByXYZ.push(pointByXYZ.x, pointByXYZ.y, pointByXYZ.z)
-//   })
-//   const buffer = new THREE.BufferGeometry()
-//   buffer.setAttribute('position', new Float32BufferAttribute(pointsByXYZ, 3))
-//   // 绘制线的材质 LineBasicMaterial
-//   const material = new THREE.LineBasicMaterial({
-//     color, // 线条颜色
-//   })
-//   const line = new THREE.LineLoop(buffer, material)
-//   return line
-// }
-
 </script>
 
 <style lang='scss' scoped>
@@ -1011,7 +995,6 @@ const render = (): void => {
   height: 100%;
   position: relative;
   overflow: hidden;
-  color: #ffe056;
 
   .canvas_box {
     width: 100%;

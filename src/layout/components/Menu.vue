@@ -42,7 +42,7 @@ const router = useRouter()
 let chooseIndex = ref(0)
 
 /** 生命周期 **/
-onMounted(() => {
+onMounted((): void => {
   if (localStorage.getItem('chooseIndex')) {
     chooseIndex.value = Number(localStorage.getItem('chooseIndex'))
     // 下一次页面更新时重置路由
