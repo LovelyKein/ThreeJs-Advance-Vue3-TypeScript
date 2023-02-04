@@ -16,8 +16,7 @@ import { onMounted, ref, onUnmounted } from 'vue'
 /** 外部依赖 **/
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
-import { Water } from 'three/examples/jsm/objects/Water'
-import { Sky } from 'three/examples/jsm/objects/Sky'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 
 /** API **/
 
@@ -32,17 +31,16 @@ let axesHelper: THREE.AxesHelper;
 let controls: OrbitControls;
 let clock: THREE.Clock
 
-let cube: THREE.Mesh
-let water: Water // 水面
-let sky: Sky // 天空
-const sunPosition: THREE.Vector3 = new THREE.Vector3(100, 5, 0) // 太阳的位置， 会根据 y 的值 改变太阳的高度（海拔），sky 中的颜色也会随之变化
+let clearColor: number = 0x001122 // 雾化和背景渲染的颜色
 
-let pmremGenerator: THREE.PMREMGenerator
-let renderTarget: THREE.WebGLRenderTarget
+/** city **/
+let floor: THREE.Group
 
 
-const canvas = ref()
 
+const canvas = ref() // 画布
+
+// 组件导出的属性数据
 defineExpose({
   renderer,
   camera,
@@ -55,10 +53,10 @@ onMounted((): void => {
   initCamera()
   initScene()
   initAxesHelper()
+  initLights()
   initControls()
   initClock()
-  initMesh()
-  enableShadow()
+  initAll() // 初始化城市
   render()
   resize()
 })
@@ -78,22 +76,26 @@ const initRenderer = (): void => {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)) // 设置像素比，提高图形精度
   renderer.setSize(canvas.value.offsetWidth, canvas.value.offsetHeight) // 设置尺寸
   // renderer.outputEncoding = THREE.sRGBEncoding // 开启 RGB 色值输出解码，会使物体颜色更明亮
-  renderer.toneMapping = THREE.ACESFilmicToneMapping // 优化 sky 的渲染
+  // renderer.toneMapping = THREE.ACESFilmicToneMapping // 优化 sky 的渲染
+  // renderer.shadowMap.enabled = true // 开启阴影的渲染
 
-  pmremGenerator = new THREE.PMREMGenerator(renderer)
+  renderer.setClearColor(clearColor, 1.0) // 渲染背景色
 }
 
 const initCamera = (): void => {
-  camera = new THREE.PerspectiveCamera(60, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 20000)
-  camera.position.set(10, 10, 50)
+  camera = new THREE.PerspectiveCamera(70, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 20000)
+  // window.camera = camera
+  camera.position.set(-800, 600, 129)
 }
 
 const initScene = (): void => {
   scene = new THREE.Scene()
+  // 设置雾化效果
+  scene.fog = new THREE.Fog(clearColor, 50, 2200)
 }
 
 const initAxesHelper = (): void => {
-  axesHelper = new THREE.AxesHelper(10)
+  axesHelper = new THREE.AxesHelper(500)
   if (scene) {
     scene.add(axesHelper)
   }
@@ -102,76 +104,86 @@ const initAxesHelper = (): void => {
 const initControls = (): void => {
   if (camera) {
     controls = new OrbitControls(camera, canvas.value)
-    controls.maxPolarAngle = Math.PI * 0.5 // 最大极角（与 xy 平面的夹角）值
-    controls.minPolarAngle = Math.PI * 0.1 // 最小极角值
-    controls.target.set(0, 10, 0)
-    controls.maxDistance = 2000 // 最远距离
-    controls.minDistance = 40 // 最近距离
-    controls.update()
+    controls.maxPolarAngle = Math.PI * 0.45 // 最大极角（与 xy 平面的夹角）值
+    controls.minPolarAngle = Math.PI * 0.05 // 最小极角值
+    controls.target.set(0, 0, 0) // 轨道旋转中心点
+    controls.maxDistance = 2400 // 最远距离
+    controls.minDistance = 100 // 最近距离
+    controls.zoomSpeed = 0.5
+    controls.rotateSpeed = 0.5
   }
+}
+
+const initLights = (): void => {
+  // 加载灯光
+  const ambient = new THREE.AmbientLight(0xffffee, 0.5)
+  scene?.add(ambient)
+
+  // 方向光，平行光，模拟太阳光
+  const directionLight = new THREE.DirectionalLight(0xffffdf)
+  directionLight.position.set(-400, 1000, 1000)
+  directionLight.intensity = 0.6
+  scene?.add(directionLight)
 }
 
 const initClock = (): void => {
   clock = new THREE.Clock()
 }
 
-const initMesh = (): void => {
+// 初始化场景
+const initAll = (): void => {
+  const fileLoader = new GLTFLoader() // 文件加载器
+  // 创建地面网格
+  create_grid(4000, 100, 0x002230, 1, 0x007777)
 
-  // cube
-  cube = new THREE.Mesh(
-    new THREE.BoxGeometry(10, 10, 10),
-    new THREE.MeshStandardMaterial({
-      roughness: 0
-    })
-  )
-  scene?.add(cube)
-
-  // Water 类: new Water(geometry: THREE.BufferGeometry, options: WaterOptions): Water
-  water = new Water(
-    new THREE.PlaneGeometry(20000, 20000), // 平面几何体
-    {
-      textureWidth: 512, // 纹理宽度
-      textureHeight: 512, // 纹理高度
-      waterNormals: new THREE.TextureLoader().load('/textures/water/waternormals.jpg', (texture) => {
-        texture.wrapS = texture.wrapT = THREE.RepeatWrapping
-      }), // 水面的法向纹理贴图
-      waterColor: 0x001a1f, // 水的颜色
-      sunDirection: sunPosition, // 太阳的位置
-      sunColor: 0xffffff, // 太阳的颜色
-      distortionScale: 3.7,
-      fog: scene?.fog !== undefined
-    }
-  )
-  water.rotation.x = -(Math.PI / 2)
-  // console.log(water)
-  water.material.uniforms['sunDirection'].value.copy(sunPosition).normalize()
-  water.material.uniforms['size'].value = 5 // 水面纹理的尺寸
-  scene?.add(water)
-
-  // Sky
-  sky = new Sky()
-  sky.scale.setScalar(20000) // 天空盒子的比例尺，。默认尺寸是 1 ，此处时放大 20000，与 Water 水面尺寸相符
-  // console.log(sky)
-  const skyUniforms = sky.material.uniforms
-  skyUniforms['sunPosition'].value.copy(sunPosition) // 给天空绑定 太阳 的位置
-  skyUniforms['turbidity'].value = 10 // 浑浊度
-  skyUniforms['rayleigh'].value = 5 // 发光强度
-  skyUniforms['mieCoefficient'].value = 0.005 // 最小系数
-  skyUniforms['mieDirectionalG'].value = 0.8
-  scene?.add(sky)
-
-  if (renderTarget !== undefined) renderTarget.dispose()
-
-  if (scene) {
-    renderTarget = pmremGenerator.fromScene(scene)
-    scene.environment = renderTarget.texture // 将 sky 的光照当作 scene 的环境
-  }
+  // 加载城市模型
+  create_city(fileLoader, '/models/city/shanghai.glb')
 }
 
-const enableShadow = (): void => {
-  if (renderer) {
-    renderer.shadowMap.enabled = true
+// 初始化网格地面
+const create_grid = (gridSize: number, cell: number, color: THREE.ColorRepresentation, pointSize: number, pointColor: THREE.ColorRepresentation): void => {
+  floor = new THREE.Group()
+  floor.name = 'floor'
+
+  // 网格
+  const gridHelper = new THREE.GridHelper(gridSize, cell, color, color)
+  gridHelper.position.set(0, -1, 0)
+  gridHelper.name = 'grid'
+  gridHelper.renderOrder = -1
+  floor.add(gridHelper)
+
+  // 点阵
+  const gap = gridSize / cell // 每个点之间的间距
+  const half = gridSize / 2
+  const matrix = new THREE.Matrix4()
+  const geometry = new THREE.PlaneGeometry(pointSize, pointSize) // 此时在 XOY 平面上
+  geometry.rotateX(-Math.PI / 2)
+  const material = new THREE.MeshBasicMaterial({
+    color: pointColor,
+    depthWrite: false,
+    side: THREE.FrontSide
+  })
+  const points = new THREE.InstancedMesh(geometry, material, Math.pow(cell, 2))
+  points.name = 'points'
+  let index: number = 0
+  for (let x = 0; x < cell; x++) {
+    for (let y = 0; y < cell; y++) {
+      matrix.setPosition(-half + x * gap, -0.4, -half + y * gap)
+      points.setMatrixAt(index, matrix)
+      index++
+    }
   }
+  floor.add(points)
+
+  scene?.add(floor)
+}
+
+// 加载城市
+const create_city = (fileLoader: GLTFLoader, url: string): void => {
+  fileLoader.load(url, (glb) => {
+    // console.log(glb)
+    scene?.add(glb.scene)
+  })
 }
 
 const resize = (): void => {
@@ -187,19 +199,8 @@ const resize = (): void => {
 }
 
 const render = (): void => {
-  if (scene && camera && renderer && clock) {
+  if (scene && camera && renderer) {
     renderer.render(scene, camera)
-
-    if (water) {
-      water.material.uniforms['time'].value += 1 / 60 // 每一帧都更新 time 的值，让 water 有动态的流动和起伏效果
-    }
-
-    if (cube) {
-      const elapsedTime = clock.getElapsedTime()
-      cube.rotation.x = elapsedTime * 0.5
-      cube.position.y = Math.sin(elapsedTime) * 5
-      cube.rotation.z = -elapsedTime * 0.5
-    }
   }
   window.requestAnimationFrame(render)
 }
