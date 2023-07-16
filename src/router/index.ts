@@ -177,6 +177,16 @@ export const routes: RouteRecordRaw[] = [
       keys: ["City", "GeoJson"],
     },
   },
+  {
+    path: "/18",
+    name: "Shader_Wave",
+    component: () => import("@/components/18_shader_wave/Shader_Wave.vue"),
+    meta: {
+      label: "Shader_Wave",
+      lesson: "18",
+      keys: ["Webgl", "Shader", 'Noise'],
+    },
+  },
 ];
 
 const router = createRouter({

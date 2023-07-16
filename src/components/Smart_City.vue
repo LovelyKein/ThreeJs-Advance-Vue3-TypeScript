@@ -17,6 +17,8 @@ import { onMounted, ref, onUnmounted } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
+import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils'
+import { lngLatToMercator } from '@/utils/coordinate'
 
 /** API **/
 
@@ -35,6 +37,8 @@ let clearColor: number = 0x001122 // 雾化和背景渲染的颜色
 
 /** city **/
 let floor: THREE.Group
+let hpjGeometry: THREE.BufferGeometry // 黄浦江几何模型
+let cityCenter: THREE.Vector3 // 城市场景几何中心
 
 
 
@@ -83,7 +87,7 @@ const initRenderer = (): void => {
 }
 
 const initCamera = (): void => {
-  camera = new THREE.PerspectiveCamera(70, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 20000)
+  camera = new THREE.PerspectiveCamera(60, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 20000)
   // window.camera = camera
   camera.position.set(-800, 600, 129)
 }
@@ -91,7 +95,7 @@ const initCamera = (): void => {
 const initScene = (): void => {
   scene = new THREE.Scene()
   // 设置雾化效果
-  scene.fog = new THREE.Fog(clearColor, 50, 2200)
+  scene.fog = new THREE.Fog(clearColor, 100, 5000)
 }
 
 const initAxesHelper = (): void => {
@@ -106,8 +110,7 @@ const initControls = (): void => {
     controls = new OrbitControls(camera, canvas.value)
     controls.maxPolarAngle = Math.PI * 0.45 // 最大极角（与 xy 平面的夹角）值
     controls.minPolarAngle = Math.PI * 0.05 // 最小极角值
-    controls.target.set(0, 0, 0) // 轨道旋转中心点
-    controls.maxDistance = 2400 // 最远距离
+    controls.maxDistance = 3000 // 最远距离
     controls.minDistance = 100 // 最近距离
     controls.zoomSpeed = 0.5
     controls.rotateSpeed = 0.5
@@ -120,10 +123,15 @@ const initLights = (): void => {
   scene?.add(ambient)
 
   // 方向光，平行光，模拟太阳光
-  const directionLight = new THREE.DirectionalLight(0xffffdf)
-  directionLight.position.set(-400, 1000, 1000)
-  directionLight.intensity = 0.6
-  scene?.add(directionLight)
+  const directionLight_1 = new THREE.DirectionalLight(0xffffdf)
+  directionLight_1.position.set(-400, 1000, 1000)
+  directionLight_1.intensity = 0.5
+  scene?.add(directionLight_1)
+
+  const directionLight_2 = new THREE.DirectionalLight(0xffffdf)
+  directionLight_2.position.set(-200, 600, -500)
+  directionLight_2.intensity = 0.2
+  scene?.add(directionLight_2)
 }
 
 const initClock = (): void => {
@@ -132,12 +140,37 @@ const initClock = (): void => {
 
 // 初始化场景
 const initAll = (): void => {
-  const fileLoader = new GLTFLoader() // 文件加载器
+  const lngLatCenter = [121.49526536464691, 31.24189350905988] // 上海明珠的经纬度
+  const mercatorPosition = lngLatToMercator(lngLatCenter)
+  cityCenter = new THREE.Vector3(mercatorPosition.x, mercatorPosition.y, 0) // 在 XOY 平面
+  cityCenter.applyAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2)
+
+  axesHelper.position.set(cityCenter.x, 0, cityCenter.z)
+
+  camera?.position.set(cityCenter.x - 1500, 600, cityCenter.z + 400)
+  camera?.lookAt(cityCenter.x, 0, cityCenter.z)
+
+  controls.target.set(cityCenter.x, 0, cityCenter.z) // 轨道中心点
+  controls.update()
+
+  const gltfLoader = new GLTFLoader() // gltf 模型加载器
+  const fileLoader = new THREE.FileLoader() // 文件加载器
+  fileLoader.setResponseType('json')
   // 创建地面网格
-  create_grid(4000, 100, 0x002230, 1, 0x007777)
+  // create_grid(6000, 100, 0x002230, 1, 0x009988)
 
   // 加载城市模型
-  create_city(fileLoader, '/models/city/shanghai.glb')
+  // create_city_model(gltfLoader, '/models/city/shanghai.glb').then((city) => {
+  //   city.name = 'City_ShangHai'
+  //   city.position.y = 20
+  //   scene?.add(city)
+  // })
+
+  // 解析 GEOJSON 数据
+  create_city_json(fileLoader, ['/json/shanghai/wt.json', '/json/shanghai/hpj.json']).then((city) => {
+    city.name = 'City_ShangHai'
+    scene?.add(city)
+  })
 }
 
 // 初始化网格地面
@@ -147,7 +180,6 @@ const create_grid = (gridSize: number, cell: number, color: THREE.ColorRepresent
 
   // 网格
   const gridHelper = new THREE.GridHelper(gridSize, cell, color, color)
-  gridHelper.position.set(0, -1, 0)
   gridHelper.name = 'grid'
   gridHelper.renderOrder = -1
   floor.add(gridHelper)
@@ -160,29 +192,153 @@ const create_grid = (gridSize: number, cell: number, color: THREE.ColorRepresent
   geometry.rotateX(-Math.PI / 2)
   const material = new THREE.MeshBasicMaterial({
     color: pointColor,
-    depthWrite: false,
-    side: THREE.FrontSide
+    side: THREE.FrontSide,
   })
   const points = new THREE.InstancedMesh(geometry, material, Math.pow(cell, 2))
   points.name = 'points'
   let index: number = 0
   for (let x = 0; x < cell; x++) {
     for (let y = 0; y < cell; y++) {
-      matrix.setPosition(-half + x * gap, -0.4, -half + y * gap)
+      matrix.setPosition(-half + x * gap, 0.1, -half + y * gap)
       points.setMatrixAt(index, matrix)
       index++
     }
   }
   floor.add(points)
+  floor.position.set(cityCenter.x, -1.0, cityCenter.z)
 
   scene?.add(floor)
 }
 
-// 加载城市
-const create_city = (fileLoader: GLTFLoader, url: string): void => {
-  fileLoader.load(url, (glb) => {
-    // console.log(glb)
-    scene?.add(glb.scene)
+// 加载城市(模型)
+const create_city_model = (fileLoader: GLTFLoader, url: string): Promise<THREE.Group> => {
+  return new Promise((resolve) => {
+    fileLoader.load(url, (glb) => {
+      const city = glb.scene // 模型场景
+      city.children = city.children.filter((item) => {
+        return item.name === '楼房' || item.name === '河面' || item.name === '地面'
+      })
+
+      // 遍历设置 楼房 的材质
+      city.getObjectByName('楼房')?.traverse((item: unknown) => {
+        const obj = item as THREE.Mesh
+        if (obj.isObject3D) {
+          // 更改材质
+          obj.material = new THREE.MeshLambertMaterial({
+            // color: object.material.color, //读取原来材质的颜色
+            color: 0xffffff
+          })
+        }
+      })
+
+      // 单独设置东方明珠的材质
+      const dfmz = city.getObjectByName('东方明珠') as THREE.Mesh
+      dfmz.material = new THREE.MeshLambertMaterial({
+        color: 0xffaa88
+      })
+      // city.children[0].remove(dfmz) // 移除 东方明珠
+
+      resolve(city)
+    })
+  })
+}
+
+//加载城市(GeoJson)
+const create_city_json = (fileLoader: THREE.FileLoader, url: string[]): Promise<THREE.Group> => {
+  /** 助方法法 **/
+
+  // 挤压模型
+  const extrudeGeometry = (points: number[][][], height: number): THREE.ExtrudeGeometry => {
+    const shapePaths: THREE.Vector2[] = []
+    // 将经纬度 --> 墨卡托坐标
+    points[0].forEach((item) => {
+      const mercator = lngLatToMercator(item)
+      shapePaths.push(new THREE.Vector2(mercator.x, mercator.y))
+    })
+    const shape = new THREE.Shape(shapePaths)
+    const geometry = new THREE.ExtrudeGeometry(shape, {
+      depth: height,
+      bevelEnabled: false,
+      steps: 1
+    })
+    return geometry
+  }
+
+  // 形状
+  const createShape = (points: number[][][]): THREE.Shape => {
+    const shapePaths: THREE.Vector2[] = []
+    // 将经纬度 --> 墨卡托坐标
+    points[0].forEach((item) => {
+      const mercator = lngLatToMercator(item)
+      shapePaths.push(new THREE.Vector2(mercator.x, mercator.y))
+    })
+    const shape = new THREE.Shape(shapePaths)
+    return shape
+  }
+
+  return new Promise((resolve) => {
+    const shangHai = new THREE.Group()
+
+    // 外滩
+    fileLoader.load(url[0], (data: unknown) => {
+      const extrudeGeometryArr: THREE.ExtrudeGeometry[] = [] // 建筑挤压模列表
+      const geo = data as geoJsonData
+      geo.features.forEach((feature) => {
+        // 统一数据格式
+        let polygons: number[][][][] = []
+        if (feature.geometry.type === "Polygon") {
+          polygons = [feature.geometry.coordinates as number[][][]]
+        } else {
+          polygons = feature.geometry.coordinates as number[][][][]
+        }
+        const height = feature.properties.Floor * 3.2
+
+        polygons.forEach((item) => {
+          const extrude = extrudeGeometry(item, height)
+          extrudeGeometryArr.push(extrude)
+        })
+      })
+      const buildingGeometry = mergeBufferGeometries(extrudeGeometryArr, false)
+      buildingGeometry.rotateX(-Math.PI / 2)
+      const buildingMaterial = new THREE.MeshLambertMaterial({
+        color: 0x009999,
+        side: THREE.FrontSide
+      })
+      const building = new THREE.Mesh(buildingGeometry, buildingMaterial)
+      building.name = 'building'
+
+      // 计算包围盒
+      // buildingGeometry.computeBoundingBox()
+      // const box = new THREE.Box3(buildingGeometry.boundingBox?.min, buildingGeometry.boundingBox?.max)
+      // box.getCenter(cityCenter)
+
+      shangHai.add(building)
+    })
+
+    // 黄浦江
+    // fileLoader.load(url[1], (data: unknown) => {
+    //   const shapeArr: THREE.Shape[] = [] // 形状列表
+    //   const geo = data as geoJsonData
+    //   const feature = geo.features[0]
+
+    //   const shape = createShape(feature.geometry.coordinates as number[][][])
+    //   shapeArr.push(shape)
+    //   hpjGeometry = new THREE.ShapeGeometry(shapeArr)
+    //   hpjGeometry.rotateX(-Math.PI / 2)
+
+    //   // const texture = new THREE.TextureLoader().load('/textures/water/water.jpg');
+    //   // texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+    //   // texture.repeat.set(2, 2);
+    //   const hpjMaterial = new THREE.MeshBasicMaterial({
+    //     // color: 0x00bbbb
+    //     color: 0x00bb99,
+    //     // map: texture
+    //   })
+    //   const hpj = new THREE.Mesh(hpjGeometry, hpjMaterial)
+    //   hpj.name = '黄浦江'
+    //   shangHai.add(hpj)
+    // })
+    resolve(shangHai)
   })
 }
 
@@ -200,6 +356,15 @@ const resize = (): void => {
 
 const render = (): void => {
   if (scene && camera && renderer) {
+    const elapsedTime = clock.getElapsedTime()
+    if (hpjGeometry) {
+      const position = hpjGeometry.attributes.position // 从几何体中获取 position 属性
+      for (let index = 0; index < position.count; index++) {
+        const y = 10 * Math.sin(index / 5 + (elapsedTime - index * index / 5))
+        position.setY(index, y);
+      }
+      position.needsUpdate = true;
+    }
     renderer.render(scene, camera)
   }
   window.requestAnimationFrame(render)

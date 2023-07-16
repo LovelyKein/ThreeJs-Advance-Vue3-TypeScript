@@ -148,9 +148,9 @@ const resize = (): void => {
   if (camera && renderer) {
     window.onresize = (): void => {
       if (camera && renderer) {
-        camera.aspect = window.innerWidth / window.innerHeight
+        camera.aspect = canvas.value!.offsetWidth / canvas.value!.offsetHeight
         camera.updateProjectionMatrix()
-        renderer.setSize(window.innerWidth, window.innerHeight)
+        renderer.setSize(canvas.value!.offsetWidth, canvas.value!.offsetHeight)
       }
     }
   }
@@ -158,8 +158,8 @@ const resize = (): void => {
 
 const mouseMove = (): void => {
   window.addEventListener('mousemove', (e) => {
-    mouse.x = (e.clientX / canvas.value.offsetWidth) * 2 - 1
-    mouse.y = -(e.clientY / canvas.value.offsetHeight) * 2 + 1
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1
   })
 }
 
