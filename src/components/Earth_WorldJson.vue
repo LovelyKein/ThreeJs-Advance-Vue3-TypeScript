@@ -187,6 +187,7 @@ const initControls = (): void => {
     controls = new OrbitControls(camera, canvas.value)
     controls.target.set(0, 0, 0) // 设置轨道控制中心
     controls.enableDamping = true // 开启鼠标的动量惯性
+    controls.enablePan = false // 禁用鼠标拖动
     controls.maxPolarAngle = Math.PI
     controls.minDistance = RADIUS * 1.001
     controls.maxDistance = RADIUS * 3
