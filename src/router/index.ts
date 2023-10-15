@@ -180,13 +180,33 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/18",
     name: "Shader_Wave",
-    component: () => import("@/components/18_shader_wave/Shader_Wave.vue"),
+    component: () => import("@/components/18/Shader_Wave.vue"),
     meta: {
       label: "Shader_Wave",
       lesson: "18",
       keys: ["Webgl", "Shader", 'Noise'],
     },
   },
+  {
+    path: "/19",
+    name: "Points_Galaxy",
+    component: () => import("@/components/19/Points_Galaxy.vue"),
+    meta: {
+      label: "Points_Galaxy",
+      lesson: "19",
+      keys: ["Webgl", "Shader", 'Point'],
+    },
+  },
+  {
+    path: "/20",
+    name: "Buffer_drawRange",
+    component: () => import("@/components/20/Buffer_drawRange.vue"),
+    meta: {
+      label: "BufferGeometry_drawRange",
+      lesson: "20",
+      keys: ["BufferGeometry", "Point", 'Line'],
+    },
+  }
 ];
 
 const router = createRouter({
