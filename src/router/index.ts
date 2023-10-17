@@ -150,9 +150,9 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/15",
     name: "EffectComposer",
-    component: () => import("@/components/EffectComposer.vue"),
+    component: () => import("@/components/15/EffectComposer.vue"),
     meta: {
-      label: "EffectComposer",
+      label: "效果合成器",
       lesson: "15",
       keys: ["EffectComposer", "GLTFLoader"],
     },
