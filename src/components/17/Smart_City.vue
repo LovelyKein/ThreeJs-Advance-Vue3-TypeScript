@@ -20,9 +20,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader'
 import { mergeBufferGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils'
 import { lngLatToMercator } from '@/utils/coordinate'
 
-/** API **/
-
-/** 属性 **/
+import city_gradient from './modify_shader/city_gradient'
 
 /** data **/
 let renderer: THREE.WebGLRenderer | null = null
@@ -57,7 +55,7 @@ onMounted((): void => {
   initCamera()
   initScene()
   initAxesHelper()
-  initLights()
+  // initLights()
   initControls()
   initClock()
   initAll() // 初始化城市
@@ -87,7 +85,7 @@ const initRenderer = (): void => {
 }
 
 const initCamera = (): void => {
-  camera = new THREE.PerspectiveCamera(60, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 20000)
+  camera = new THREE.PerspectiveCamera(60, canvas.value.offsetWidth / canvas.value.offsetHeight, 1, 200000)
   // window.camera = camera
   camera.position.set(-800, 600, 129)
 }
@@ -95,14 +93,12 @@ const initCamera = (): void => {
 const initScene = (): void => {
   scene = new THREE.Scene()
   // 设置雾化效果
-  scene.fog = new THREE.Fog(clearColor, 100, 5000)
+  // scene.fog = new THREE.Fog(clearColor, 100, 5000)
 }
 
 const initAxesHelper = (): void => {
   axesHelper = new THREE.AxesHelper(500)
-  if (scene) {
-    scene.add(axesHelper)
-  }
+  scene?.add(axesHelper)
 }
 
 const initControls = (): void => {
@@ -110,8 +106,8 @@ const initControls = (): void => {
     controls = new OrbitControls(camera, canvas.value)
     controls.maxPolarAngle = Math.PI * 0.45 // 最大极角（与 xy 平面的夹角）值
     controls.minPolarAngle = Math.PI * 0.05 // 最小极角值
-    controls.maxDistance = 3000 // 最远距离
-    controls.minDistance = 100 // 最近距离
+    // controls.maxDistance = 3000 // 最远距离
+    // controls.minDistance = 100 // 最近距离
     controls.zoomSpeed = 0.5
     controls.rotateSpeed = 0.5
   }
@@ -143,14 +139,15 @@ const initAll = (): void => {
   const lngLatCenter = [121.49526536464691, 31.24189350905988] // 上海明珠的经纬度
   const mercatorPosition = lngLatToMercator(lngLatCenter)
   cityCenter = new THREE.Vector3(mercatorPosition.x, mercatorPosition.y, 0) // 在 XOY 平面
-  cityCenter.applyAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2)
+  cityCenter.applyAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2) // 绕 X 轴旋转 90度
+  // cityCenter.y = 0 // 精确数值
 
-  axesHelper.position.set(cityCenter.x, 0, cityCenter.z)
+  axesHelper.position.copy(cityCenter)
 
   camera?.position.set(cityCenter.x - 1500, 600, cityCenter.z + 400)
-  camera?.lookAt(cityCenter.x, 0, cityCenter.z)
+  camera?.lookAt(cityCenter)
 
-  controls.target.set(cityCenter.x, 0, cityCenter.z) // 轨道中心点
+  controls.target.copy(cityCenter) // 轨道控制器中心点
   controls.update()
 
   const gltfLoader = new GLTFLoader() // gltf 模型加载器
@@ -160,17 +157,17 @@ const initAll = (): void => {
   // create_grid(6000, 100, 0x002230, 1, 0x009988)
 
   // 加载城市模型
-  // create_city_model(gltfLoader, '/models/city/shanghai.glb').then((city) => {
-  //   city.name = 'City_ShangHai'
-  //   city.position.y = 20
-  //   scene?.add(city)
-  // })
-
-  // 解析 GEOJSON 数据
-  create_city_json(fileLoader, ['/json/shanghai/wt.json', '/json/shanghai/hpj.json']).then((city) => {
+  create_city_model(gltfLoader, '/models/city/shanghai.glb').then((city) => {
     city.name = 'City_ShangHai'
+
     scene?.add(city)
   })
+
+  // 解析 GEOJSON 数据
+  // create_city_json(fileLoader, ['/json/shanghai/wt.json', '/json/shanghai/hpj.json']).then((city) => {
+  //   city.name = 'City_ShangHai'
+  //   scene?.add(city)
+  // })
 }
 
 // 初始化网格地面
@@ -215,28 +212,34 @@ const create_city_model = (fileLoader: GLTFLoader, url: string): Promise<THREE.G
   return new Promise((resolve) => {
     fileLoader.load(url, (glb) => {
       const city = glb.scene // 模型场景
+      city.position.copy(cityCenter)
+      const needs = ['楼房', '河面', '地面']
       city.children = city.children.filter((item) => {
-        return item.name === '楼房' || item.name === '河面' || item.name === '地面'
+        return needs.includes(item.name)
       })
 
       // 遍历设置 楼房 的材质
-      city.getObjectByName('楼房')?.traverse((item: unknown) => {
+      city.traverse((item: THREE.Object3D) => {
         const obj = item as THREE.Mesh
-        if (obj.isObject3D) {
+        if (obj.isMesh) {
+          // 单独设置 东方明珠 的材质
+          const color = obj.name === '东方明珠' ? 0x22aaff : 0x00ffee
           // 更改材质
-          obj.material = new THREE.MeshLambertMaterial({
-            // color: object.material.color, //读取原来材质的颜色
-            color: 0xffffff
+          obj.material = new THREE.MeshBasicMaterial({
+            color
           })
+
+          // 修改城市材质
+          modifyCityMaterial(obj)
+          // 添加扩散材质
+          
         }
       })
-
-      // 单独设置东方明珠的材质
-      const dfmz = city.getObjectByName('东方明珠') as THREE.Mesh
-      dfmz.material = new THREE.MeshLambertMaterial({
-        color: 0xffaa88
+      // 河流
+      const river = city.getObjectByName('河面')! as THREE.Mesh
+      river.material = new THREE.MeshBasicMaterial({
+        color: 0x0059ff
       })
-      // city.children[0].remove(dfmz) // 移除 东方明珠
 
       resolve(city)
     })
@@ -298,7 +301,7 @@ const create_city_json = (fileLoader: THREE.FileLoader, url: string[]): Promise<
           extrudeGeometryArr.push(extrude)
         })
       })
-      const buildingGeometry = mergeBufferGeometries(extrudeGeometryArr, false)
+      const buildingGeometry = mergeBufferGeometries(extrudeGeometryArr, true)
       buildingGeometry.rotateX(-Math.PI / 2)
       const buildingMaterial = new THREE.MeshLambertMaterial({
         color: 0x009999,
@@ -316,28 +319,28 @@ const create_city_json = (fileLoader: THREE.FileLoader, url: string[]): Promise<
     })
 
     // 黄浦江
-    // fileLoader.load(url[1], (data: unknown) => {
-    //   const shapeArr: THREE.Shape[] = [] // 形状列表
-    //   const geo = data as geoJsonData
-    //   const feature = geo.features[0]
+    fileLoader.load(url[1], (data: unknown) => {
+      const shapeArr: THREE.Shape[] = [] // 形状列表
+      const geo = data as geoJsonData
+      const feature = geo.features[0]
 
-    //   const shape = createShape(feature.geometry.coordinates as number[][][])
-    //   shapeArr.push(shape)
-    //   hpjGeometry = new THREE.ShapeGeometry(shapeArr)
-    //   hpjGeometry.rotateX(-Math.PI / 2)
+      const shape = createShape(feature.geometry.coordinates as number[][][])
+      shapeArr.push(shape)
+      hpjGeometry = new THREE.ShapeGeometry(shapeArr)
+      hpjGeometry.rotateX(-Math.PI / 2)
 
-    //   // const texture = new THREE.TextureLoader().load('/textures/water/water.jpg');
-    //   // texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-    //   // texture.repeat.set(2, 2);
-    //   const hpjMaterial = new THREE.MeshBasicMaterial({
-    //     // color: 0x00bbbb
-    //     color: 0x00bb99,
-    //     // map: texture
-    //   })
-    //   const hpj = new THREE.Mesh(hpjGeometry, hpjMaterial)
-    //   hpj.name = '黄浦江'
-    //   shangHai.add(hpj)
-    // })
+      // const texture = new THREE.TextureLoader().load('/textures/water/water.jpg');
+      // texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+      // texture.repeat.set(2, 2);
+      const hpjMaterial = new THREE.MeshBasicMaterial({
+        // color: 0x00bbbb
+        color: 0x00bb99,
+        // map: texture
+      })
+      const hpj = new THREE.Mesh(hpjGeometry, hpjMaterial)
+      hpj.name = '黄浦江'
+      shangHai.add(hpj)
+    })
     resolve(shangHai)
   })
 }
@@ -368,6 +371,53 @@ const render = (): void => {
     renderer.render(scene, camera)
   }
   window.requestAnimationFrame(render)
+}
+
+// 楼房渐变效果
+const modifyCityMaterial = (mesh: THREE.Mesh): void => {
+  mesh.geometry.computeBoundingBox()
+  // const { max, min } = mesh.geometry.boundingBox!
+  const { max, min } = new THREE.Box3().expandByObject(mesh)
+  const uHeight = Math.floor(max.y - min.y)
+
+  const material = mesh.material as THREE.MeshBasicMaterial
+  material.onBeforeCompile = (shader) => {
+
+    // 添加 uniforms 参数
+    shader.uniforms.uTopColor = {
+      value: new THREE.Color(0xaaaeff)
+    }
+    shader.uniforms.uHeight = {
+      value: uHeight * 100
+    }
+
+    // 顶点着色器
+    shader.vertexShader = shader.vertexShader.replace(
+      'void main() {',
+      `
+        varying vec3 vPosition;
+        void main() {
+          vPosition = position;
+      `
+    )
+
+    // 片元着色器
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <clipping_planes_pars_fragment>',
+      `
+        #include <clipping_planes_pars_fragment>
+        
+        varying vec3 vPosition;
+
+        uniform vec3 uTopColor;
+        uniform float uHeight;
+      `
+    )
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <output_fragment>',
+      city_gradient
+    )
+  }
 }
 
 </script>

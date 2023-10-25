@@ -170,11 +170,11 @@ export const routes: RouteRecordRaw[] = [
   {
     path: "/17",
     name: "Smart_City",
-    component: () => import("@/components/Smart_City.vue"),
+    component: () => import("@/components/17/Smart_City.vue"),
     meta: {
       label: "Smart_City",
       lesson: "17",
-      keys: ["City", "GeoJson"],
+      keys: ["City", "Shader"],
     },
   },
   {
